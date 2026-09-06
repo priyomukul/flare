@@ -124,7 +124,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.submenu = sub
         }
 
-        menu.addItem(.separator())
         add(to: menu, title: "Copy Claude Code hooks snippet", action: #selector(copyHooks))
         add(to: menu, title: "Settings…", action: #selector(openSettings)).keyEquivalent = ","
 
