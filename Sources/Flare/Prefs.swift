@@ -9,6 +9,8 @@ enum Prefs {
         static let reminderInterval = "reminderInterval"
         static let flashColor = "flashColor"
         static let peakOpacity = "peakOpacity"
+        static let autoCheckUpdates = "autoCheckUpdates"
+        static let lastUpdateCheck = "lastUpdateCheck"
     }
 
     static let defaultPort = 4242
@@ -24,6 +26,7 @@ enum Prefs {
             Key.reminderInterval: defaultReminderInterval,
             Key.flashColor: defaultColorHex,
             Key.peakOpacity: defaultPeakOpacity,
+            Key.autoCheckUpdates: true,
         ])
     }
 
@@ -54,6 +57,25 @@ enum Prefs {
     static var flashColor: NSColor {
         get { NSColor(hex: flashColorHex) ?? NSColor(hex: defaultColorHex)! }
         set { flashColorHex = newValue.hexString }
+    }
+
+    /// The one setting that lets Flare talk to anything beyond 127.0.0.1.
+    static var autoCheckUpdates: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.autoCheckUpdates) }
+        set { set(Key.autoCheckUpdates, newValue) }
+    }
+
+    /// Written on every check, so it deliberately does not post didChange —
+    /// nothing needs to restart the listener because a version was fetched.
+    static var lastUpdateCheck: Date? {
+        get {
+            let t = UserDefaults.standard.double(forKey: Key.lastUpdateCheck)
+            return t > 0 ? Date(timeIntervalSince1970: t) : nil
+        }
+        set {
+            UserDefaults.standard.set(newValue?.timeIntervalSince1970 ?? 0,
+                                      forKey: Key.lastUpdateCheck)
+        }
     }
 
     private static func clampPort(_ p: Int) -> Int {

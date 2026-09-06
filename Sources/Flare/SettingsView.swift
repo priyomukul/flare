@@ -11,6 +11,10 @@ struct SettingsView: View {
     @State private var color: Color = Color(nsColor: Prefs.flashColor)
     @State private var peakOpacity: Double = Prefs.peakOpacity
     @State private var launchAtLogin: Bool = LoginItem.isEnabled
+    @State private var autoCheckUpdates: Bool = Prefs.autoCheckUpdates
+    @State private var updateStatus: String = ""
+    @State private var updateIsError = false
+    @State private var updateAvailable = false
     @State private var loginError: String?
     @State private var listenerStatus: String = HTTPListener.shared.status
 
@@ -71,6 +75,40 @@ struct SettingsView: View {
             }
 
             Section {
+                LabeledContent("Version") {
+                    Text(UpdateChecker.shared.currentVersion)
+                        .foregroundStyle(.secondary)
+                }
+                Toggle("Check for updates automatically", isOn: $autoCheckUpdates)
+                    .onChange(of: autoCheckUpdates) { _, on in Prefs.autoCheckUpdates = on }
+                LabeledContent("Status") {
+                    HStack(spacing: 10) {
+                        Text(updateStatus)
+                            .font(.callout)
+                            .foregroundStyle(updateIsError ? Color.red : .secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        if updateAvailable {
+                            Button("Get it") { UpdateChecker.shared.act() }
+                        } else {
+                            Button("Check Now") { UpdateChecker.shared.check() }
+                        }
+                    }
+                }
+                if UpdateChecker.shared.isHomebrewManaged {
+                    Text("Installed with Homebrew — update with `\(UpdateChecker.shared.homebrewCommand)`.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("The only thing Flare sends beyond 127.0.0.1: a version check against GitHub, once a day. It never downloads or installs anything on its own.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, want in
                         loginError = LoginItem.set(enabled: want)
@@ -85,14 +123,51 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 540)
+        .frame(width: 460, height: 620)
         .onReceive(NotificationCenter.default.publisher(for: HTTPListener.stateChanged)) { _ in
             listenerStatus = HTTPListener.shared.status
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UpdateChecker.didChange)) { _ in
+            refreshUpdateStatus()
         }
         .onAppear {
             listenerStatus = HTTPListener.shared.status
             launchAtLogin = LoginItem.isEnabled
+            autoCheckUpdates = Prefs.autoCheckUpdates
+            refreshUpdateStatus()
         }
+    }
+
+    private func refreshUpdateStatus() {
+        switch UpdateChecker.shared.state {
+        case .idle:
+            updateStatus = Self.lastCheckedLabel()
+            updateIsError = false
+            updateAvailable = false
+        case .checking:
+            updateStatus = "Checking…"
+            updateIsError = false
+            updateAvailable = false
+        case .upToDate:
+            updateStatus = "Up to date. \(Self.lastCheckedLabel())"
+            updateIsError = false
+            updateAvailable = false
+        case .available(let version, _):
+            updateStatus = "Version \(version) is available."
+            updateIsError = false
+            updateAvailable = true
+        case .failed(let reason):
+            updateStatus = reason
+            updateIsError = true
+            updateAvailable = false
+        }
+    }
+
+    static func lastCheckedLabel() -> String {
+        guard let last = Prefs.lastUpdateCheck else { return "Not checked yet." }
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .full
+        return "Checked \(f.localizedString(for: last, relativeTo: Date()))."
     }
 
     private func commitPort() {
@@ -157,7 +232,7 @@ final class SettingsWindowController {
             let w = NSWindow(contentViewController: hosting)
             w.title = "Flare Settings"
             w.styleMask = [.titled, .closable]
-            w.setContentSize(NSSize(width: 460, height: 540))
+            w.setContentSize(NSSize(width: 460, height: 620))
             w.isReleasedWhenClosed = false
             w.center()
             window = w

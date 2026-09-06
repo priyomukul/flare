@@ -40,6 +40,20 @@ instead, macOS will refuse the first launch — right-click Flare in Application
 
 To uninstall: `brew uninstall --cask flare` (add `--zap` to remove settings too).
 
+### Updates
+
+If you installed with Homebrew, `brew upgrade --cask flare` is all you need.
+
+Either way, Flare checks GitHub once a day for a newer release and, when there is one, the
+menu's **Check for Updates…** line becomes **Update to 1.1.0…**. Clicking it opens the release
+page — or, on a Homebrew-managed copy, puts `brew upgrade --cask flare` on your clipboard
+first. Flare never downloads or installs anything by itself.
+
+That version check is the only thing Flare sends anywhere other than `127.0.0.1`. It is an
+unauthenticated `GET` to `api.github.com`, it carries nothing but a `Flare/<version>`
+user-agent, and **Settings ▸ Updates ▸ Check for updates automatically** turns it off. With it
+off, the menu item still works on demand.
+
 ## Build and run
 
 ```sh
@@ -271,6 +285,7 @@ make smoke          # or: scripts/smoke.sh 4242
 | Remind every | 120s | Floor of 30s. |
 | Colour | `#FF4500` | Red-orange. |
 | Peak opacity | 35% | How solid the flash gets. |
+| Check for updates automatically | on | One `GET` to `api.github.com` per day. The only non-localhost traffic Flare produces. |
 | Launch at login | off | `SMAppService`; works with the ad-hoc signed bundle. Enable it from an installed copy — a login item pointing into `dist/` dies at the next `make clean`, and Flare says so if you try. |
 
 Settings live in `UserDefaults` under `com.priyomukul.flare`, so you can also poke at them
@@ -287,7 +302,8 @@ outside needs a relaunch.
 ## What it does when nothing is happening
 
 - **Reminder** — every `reminderInterval` seconds, if anything is still waiting and Flare is
-  not paused, it flashes again. The timer free-runs; a new signal does not reset it.
+  not paused, it flashes again. The timer re-phases off each flash that actually renders, so a
+  signal flash and a nag can never land a fraction of a second apart.
 - **Return to desk** — every 5s Flare reads overall input idle time. Once you have been away
   for five minutes it arms, and the moment you touch the machine again it flashes if
   something is still waiting. No permissions needed for this; it is not an event tap.
@@ -345,6 +361,7 @@ Sources/Flare/
   Prefs.swift          UserDefaults
   SettingsView.swift   The one SwiftUI view, plus SMAppService and its window
   HooksSnippet.swift   The hooks JSON, with the live port
+  UpdateChecker.swift  Daily GitHub release check; never installs anything
 Resources/
   Info.plist           LSUIElement, bundle id, icon name
   Flare.icns           App icon, all ten sizes
@@ -381,6 +398,12 @@ Where the brief left something open, Flare took the simplest option:
   Finder, Get Info and the Settings window.
 - **Settings shows the listener's live state** next to the port. The brief did not list it,
   but without it a busy port fails silently and Flare just never flashes again.
+- **The update check is a check, not an updater.** The brief ruled out auto-update, and this
+  keeps that spirit: no Sparkle, no background download, no self-replacing bundle, no
+  third-party dependency. It reads one JSON document and changes a menu item. Everything that
+  actually installs remains something you triggered — `brew upgrade`, or a drag from the DMG.
+- **It runs hourly but only acts once a day.** A 24-hour timer on a Mac that sleeps would
+  simply never fire; comparing elapsed time against a stored timestamp survives sleep.
 - **The DMG is built with `hdiutil` and Finder AppleScript only** — no `create-dmg` or any
   other third-party tool, matching the app's own zero-dependency rule. Two ordering traps
   are worth knowing if you touch `scripts/make-dmg.sh`: Finder deletes any

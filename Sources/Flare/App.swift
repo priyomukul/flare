@@ -35,14 +35,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Reminder.shared.onFlash = { [weak self] in self?.flashNow() }
         Reminder.shared.start()
 
+        UpdateChecker.shared.start()
+
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(prefsChanged), name: Prefs.didChange, object: nil)
         nc.addObserver(self, selector: #selector(refreshStatusItem), name: AgentStore.didChange, object: nil)
         nc.addObserver(self, selector: #selector(refreshStatusItem), name: PauseController.didChange, object: nil)
         nc.addObserver(self, selector: #selector(refreshStatusItem), name: HTTPListener.stateChanged, object: nil)
+        nc.addObserver(self, selector: #selector(refreshStatusItem), name: UpdateChecker.didChange, object: nil)
     }
 
     func applicationWillTerminate(_ note: Notification) {
+        UpdateChecker.shared.stop()
         Reminder.shared.stop()
         HTTPListener.shared.stop()
     }
@@ -129,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         add(to: menu, title: "Copy Claude Code hooks snippet", action: #selector(copyHooks))
+        addUpdateItem(to: menu)
 
         // macOS gives the standard Settings item a gear automatically, and the
         // image column is laid out per section — so anything sharing a section
@@ -150,6 +155,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.isEnabled = enabled ?? (action != nil)
         menu.addItem(item)
         return item
+    }
+
+    /// One item that changes with the checker's state, rather than a permanent
+    /// row plus a second one that only sometimes appears.
+    private func addUpdateItem(to menu: NSMenu) {
+        switch UpdateChecker.shared.state {
+        case .checking:
+            add(to: menu, title: "Checking for updates…", action: nil)
+        case .available(let version, _):
+            let title = UpdateChecker.shared.isHomebrewManaged
+                ? "Update to \(version) — copy brew command"
+                : "Update to \(version)…"
+            add(to: menu, title: title, action: #selector(openUpdate))
+        case .idle, .upToDate, .failed:
+            add(to: menu, title: "Check for Updates…", action: #selector(checkForUpdates))
+        }
     }
 
     private func addPause(to menu: NSMenu, title: String, seconds: TimeInterval) {
@@ -215,6 +236,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
+    }
+
+    @objc private func checkForUpdates() {
+        UpdateChecker.shared.check()
+    }
+
+    @objc private func openUpdate() {
+        UpdateChecker.shared.act()
     }
 
     @objc private func openSettings() {
