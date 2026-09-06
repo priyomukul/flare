@@ -13,38 +13,59 @@ enum FlareMain {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
 
     func applicationDidFinishLaunching(_ note: Notification) {
         Prefs.registerDefaults()
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = Self.icon(active: false)
         statusItem.button?.imagePosition = .imageLeading
-
         let menu = NSMenu()
-        menu.addItem(withTitle: "Test flash", action: #selector(testFlash), keyEquivalent: "").target = self
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Flare", action: #selector(quit), keyEquivalent: "q").target = self
+        menu.delegate = self
         statusItem.menu = menu
+        refreshStatusItem()
 
-        HTTPListener.shared.onWaiting = { [weak self] in self?.flashForWaiting() }
+        HTTPListener.shared.onWaiting = { [weak self] in self?.signalReceived() }
         HTTPListener.shared.start(port: Prefs.port)
 
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(prefsChanged), name: Prefs.didChange, object: nil)
+        let nc = NotificationCenter.default
+        nc.addObserver(self, selector: #selector(prefsChanged), name: Prefs.didChange, object: nil)
+        nc.addObserver(self, selector: #selector(refreshStatusItem), name: AgentStore.didChange, object: nil)
+        nc.addObserver(self, selector: #selector(refreshStatusItem), name: PauseController.didChange, object: nil)
+        nc.addObserver(self, selector: #selector(refreshStatusItem), name: HTTPListener.stateChanged, object: nil)
     }
 
     func applicationWillTerminate(_ note: Notification) {
         HTTPListener.shared.stop()
     }
 
+    // MARK: - Flashing
+
+    /// A POST /waiting landed. Record it (already done) and flash unless paused.
+    private func signalReceived() {
+        guard !PauseController.shared.isPaused else { return }
+        flashNow()
+    }
+
+    func flashNow() {
+        FlashOverlay.shared.flash(label: AgentStore.shared.summaryLabel())
+    }
+
     @objc private func prefsChanged() {
         HTTPListener.shared.restartIfNeeded(port: Prefs.port)
     }
 
-    private func flashForWaiting() {
-        FlashOverlay.shared.flash(label: AgentStore.shared.summaryLabel())
+    // MARK: - Status item
+
+    @objc private func refreshStatusItem() {
+        let count = AgentStore.shared.count
+        let active = count > 0 && !PauseController.shared.isPaused
+        statusItem.button?.image = Self.icon(active: active)
+        statusItem.button?.title = count > 0 ? " \(count)" : ""
+        statusItem.button?.toolTip = count > 0
+            ? AgentStore.shared.summaryLabel()
+            : "Flare · nothing waiting"
     }
 
     static func icon(active: Bool) -> NSImage? {
@@ -55,8 +76,122 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return img
     }
 
+    // MARK: - Menu
+
+    /// Rebuilt on every open so the waiting times are current.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let pause = PauseController.shared
+        pause.expireIfNeeded()
+
+        if !HTTPListener.shared.isHealthy {
+            add(to: menu, title: "⚠︎ \(HTTPListener.shared.status)", action: nil)
+        }
+        if let summary = pause.summary {
+            add(to: menu, title: summary, action: nil)
+        }
+
+        let agents = AgentStore.shared.all
+        if agents.isEmpty {
+            add(to: menu, title: "No agents waiting", action: nil)
+        } else {
+            for agent in agents {
+                let item = add(to: menu, title: Self.menuTitle(for: agent),
+                               action: #selector(clearAgent(_:)))
+                item.representedObject = agent.id
+                item.toolTip = agent.note
+            }
+        }
+
+        menu.addItem(.separator())
+        add(to: menu, title: "Clear all",
+            action: agents.isEmpty ? nil : #selector(clearAll))
+        add(to: menu, title: "Test flash", action: #selector(testFlash))
+
+        if pause.isPaused {
+            add(to: menu, title: "Resume", action: #selector(resume))
+        } else {
+            let item = add(to: menu, title: "Pause", action: nil)
+            let sub = NSMenu()
+            addPause(to: sub, title: "15 minutes", seconds: 15 * 60)
+            addPause(to: sub, title: "1 hour", seconds: 60 * 60)
+            add(to: sub, title: "Until resumed", action: #selector(pauseUntilResumed))
+            item.submenu = sub
+        }
+
+        menu.addItem(.separator())
+        add(to: menu, title: "Copy Claude Code hooks snippet", action: #selector(copyHooks))
+
+        menu.addItem(.separator())
+        add(to: menu, title: "Quit Flare", action: #selector(quit)).keyEquivalent = "q"
+    }
+
+    @discardableResult
+    private func add(to menu: NSMenu, title: String, action: Selector?) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = action == nil ? nil : self
+        item.isEnabled = action != nil
+        menu.addItem(item)
+        return item
+    }
+
+    private func addPause(to menu: NSMenu, title: String, seconds: TimeInterval) {
+        let item = add(to: menu, title: title, action: #selector(pauseFor(_:)))
+        item.representedObject = seconds
+    }
+
+    /// `api-server · 4m · Claude needs your permission to use Bash`
+    static func menuTitle(for agent: WaitingAgent) -> String {
+        var parts = [agent.displayName, shortDuration(agent.waitingSeconds)]
+        if let note = agent.note, !note.isEmpty {
+            parts.append(note.count > 48 ? String(note.prefix(47)) + "…" : note)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    static func shortDuration(_ seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds)s" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = minutes / 60, rest = minutes % 60
+        return rest == 0 ? "\(hours)h" : "\(hours)h \(rest)m"
+    }
+
+    // MARK: - Actions
+
+    @objc private func clearAgent(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        AgentStore.shared.remove(id: id)
+    }
+
+    @objc private func clearAll() {
+        AgentStore.shared.removeAll()
+    }
+
+    /// Deliberately ignores pause — it is an explicit request to see a flash.
     @objc private func testFlash() {
         FlashOverlay.shared.flash(label: "Flare · test flash")
+    }
+
+    @objc private func pauseFor(_ sender: NSMenuItem) {
+        guard let seconds = sender.representedObject as? TimeInterval else { return }
+        PauseController.shared.pause(for: seconds)
+    }
+
+    @objc private func pauseUntilResumed() {
+        PauseController.shared.pauseUntilResumed()
+    }
+
+    @objc private func resume() {
+        PauseController.shared.resume()
+        if !AgentStore.shared.isEmpty { flashNow() }
+    }
+
+    @objc private func copyHooks() {
+        let text = HooksSnippet.json(port: Prefs.port)
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
     }
 
     @objc private func quit() {
