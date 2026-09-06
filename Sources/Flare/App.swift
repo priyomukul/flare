@@ -125,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
         add(to: menu, title: "Copy Claude Code hooks snippet", action: #selector(copyHooks))
+        add(to: menu, title: "Settings…", action: #selector(openSettings)).keyEquivalent = ","
 
         menu.addItem(.separator())
         add(to: menu, title: "Quit Flare", action: #selector(quit)).keyEquivalent = "q"
@@ -196,6 +197,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
+    }
+
+    @objc private func openSettings() {
+        SettingsWindowController.shared.show()
     }
 
     @objc private func quit() {
