@@ -29,6 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         HTTPListener.shared.onWaiting = { [weak self] in self?.signalReceived() }
         HTTPListener.shared.start(port: Prefs.port)
 
+        Reminder.shared.onFlash = { [weak self] in self?.flashNow() }
+        Reminder.shared.start()
+
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(prefsChanged), name: Prefs.didChange, object: nil)
         nc.addObserver(self, selector: #selector(refreshStatusItem), name: AgentStore.didChange, object: nil)
@@ -37,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ note: Notification) {
+        Reminder.shared.stop()
         HTTPListener.shared.stop()
     }
 
