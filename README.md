@@ -15,6 +15,27 @@ Requires macOS 14+ and a Swift 5.9+ toolchain (Xcode command line tools).
 
 ---
 
+## Install
+
+**Homebrew** — one command, and `brew upgrade` keeps it current:
+
+```sh
+brew tap priyomukul/flare https://github.com/priyomukul/flare
+brew install --cask flare
+open -a Flare
+```
+
+**Or the drag-and-drop installer** — grab `Flare-<version>.dmg` from
+[Releases](https://github.com/priyomukul/flare/releases), open it, and drag Flare into
+Applications.
+
+Flare is ad-hoc signed rather than notarised with a paid Developer ID, so Gatekeeper does
+not recognise it. The cask strips the quarantine flag for you. If you install from the DMG
+instead, macOS will refuse the first launch — right-click Flare in Applications, choose
+**Open**, and confirm once. After that it opens normally.
+
+To uninstall: `brew uninstall --cask flare` (add `--zap` to remove settings too).
+
 ## Build and run
 
 ```sh
@@ -35,6 +56,8 @@ no Dock icon), ad-hoc signs it, and launches it. Look for the beacon in the menu
 | `make install` | Copy the bundle to `/Applications` |
 | `make debug` | The same bundle, built `-c debug` |
 | `make icon` | Rebuild `Resources/Flare.icns` from the 1024pt PNG |
+| `make dmg` | Build the drag-and-drop `dist/Flare-<version>.dmg` |
+| `make release` | Cut a GitHub release and attach the DMG (needs `gh`) |
 | `make smoke` | Run `scripts/smoke.sh` against a running Flare |
 | `make clean` | Remove `.build` and `dist` |
 
@@ -297,7 +320,8 @@ Two things need you at the keyboard, because they need real hardware events:
 ## Uninstall
 
 1. Quit Flare from the menu bar (turn off **Launch at login** first if you enabled it).
-2. Delete the app: `rm -rf /Applications/Flare.app` and the checkout.
+2. Remove it: `brew uninstall --cask flare --zap`, or `rm -rf /Applications/Flare.app` if you
+   installed from the DMG.
 3. Remove the `hooks` block you pasted into `~/.claude/settings.json`.
 4. Optionally `defaults delete com.priyomukul.flare`.
 
@@ -323,7 +347,11 @@ Resources/
   flare-icon-1024.png  Icon source; `make icon` regenerates the .icns from this
   flare-icon.svg       Vector original
 Makefile               Build, bundle, sign, run
-scripts/smoke.sh       Route-by-route check against a running Flare
+scripts/
+  smoke.sh             Route-by-route check against a running Flare
+  make-dmg.sh          Builds the drag-and-drop installer
+  dmg-background.swift Renders the DMG window background at 1x and 2x
+Casks/flare.rb         Homebrew cask
 ```
 
 ## Choices made along the way
@@ -349,6 +377,14 @@ Where the brief left something open, Flare took the simplest option:
   Finder, Get Info and the Settings window.
 - **Settings shows the listener's live state** next to the port. The brief did not list it,
   but without it a busy port fails silently and Flare just never flashes again.
+- **The DMG is built with `hdiutil` and Finder AppleScript only** — no `create-dmg` or any
+  other third-party tool, matching the app's own zero-dependency rule. Two ordering traps
+  are worth knowing if you touch `scripts/make-dmg.sh`: Finder deletes any
+  `.VolumeIcon.icns` when it opens the window, and closing the window clears the custom-icon
+  bit — so both have to be applied *after* the styling pass, not before.
+- **Homebrew ships as a personal tap rather than homebrew-cask.** The official cask
+  repository requires notarised binaries and a notability bar a new project will not clear.
+  A tap costs one extra command and behaves identically from then on.
 - **The build is native-arch and ad-hoc signed.** For a universal binary, change the Makefile
   to `swift build -c release --arch arm64 --arch x86_64`. For a Developer ID build, replace
   `--sign -` with your identity.

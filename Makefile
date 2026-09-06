@@ -4,7 +4,7 @@ CONFIG    := release
 DIST      := dist
 APP       := $(DIST)/$(APP_NAME).app
 
-.PHONY: all build app run stop clean install smoke debug icon
+.PHONY: all build app run stop clean install smoke debug icon dmg release
 
 all: app
 
@@ -30,6 +30,22 @@ run: stop app
 
 stop:
 	@pkill -x $(APP_NAME) 2>/dev/null || true
+
+## Drag-and-drop installer: dist/Flare-<version>.dmg
+dmg: app
+	@./scripts/make-dmg.sh
+
+## Cut a GitHub release and attach the DMG, so the Homebrew cask has something
+## to download. Requires an authenticated `gh`.
+release: dmg
+	@VERSION="$$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)"; \
+	 DMG="dist/Flare-$$VERSION.dmg"; \
+	 gh release view "v$$VERSION" >/dev/null 2>&1 \
+	   && gh release upload "v$$VERSION" "$$DMG" --clobber \
+	   || gh release create "v$$VERSION" "$$DMG" \
+	        --title "Flare $$VERSION" \
+	        --notes "Drag-and-drop installer. Or: \`brew tap priyomukul/flare https://github.com/priyomukul/flare\` then \`brew install --cask flare\`."; \
+	 echo; echo "cask sha256: $$(shasum -a 256 "$$DMG" | cut -d' ' -f1)"
 
 ## Rebuild Flare.icns from the 1024pt source. Only needed if the artwork changes.
 icon:
