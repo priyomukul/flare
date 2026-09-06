@@ -23,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.imagePosition = .imageLeading
         let menu = NSMenu()
         menu.delegate = self
+        // No item is ever checked, so drop the leading state column and let the
+        // titles start at the left edge.
+        menu.showsStateColumn = false
         statusItem.menu = menu
         refreshStatusItem()
 
@@ -118,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             let item = add(to: menu, title: "Pause", action: nil, enabled: true)
             let sub = NSMenu()
+            sub.showsStateColumn = false
             addPause(to: sub, title: "15 minutes", seconds: 15 * 60)
             addPause(to: sub, title: "1 hour", seconds: 60 * 60)
             add(to: sub, title: "Until resumed", action: #selector(pauseUntilResumed))
