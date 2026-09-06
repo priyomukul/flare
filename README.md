@@ -21,9 +21,13 @@ Requires macOS 14+ and a Swift 5.9+ toolchain (Xcode command line tools).
 
 ```sh
 brew tap priyomukul/flare https://github.com/priyomukul/flare
+brew trust priyomukul/flare
 brew install --cask flare
 open -a Flare
 ```
+
+Homebrew 6 asks you to trust any third-party tap before it will load a cask from it — that
+is the middle line, and it is a one-off.
 
 **Or the drag-and-drop installer** — grab `Flare-<version>.dmg` from
 [Releases](https://github.com/priyomukul/flare/releases), open it, and drag Flare into
@@ -384,7 +388,11 @@ Where the brief left something open, Flare took the simplest option:
   bit — so both have to be applied *after* the styling pass, not before.
 - **Homebrew ships as a personal tap rather than homebrew-cask.** The official cask
   repository requires notarised binaries and a notability bar a new project will not clear.
-  A tap costs one extra command and behaves identically from then on.
+  A tap costs two extra commands and behaves identically from then on.
+- **The cask uses `postflight_steps`, not the old `postflight` block.** Homebrew 6 deprecated
+  arbitrary Ruby in favour of a declarative step list, and paths there are template tokens —
+  `{{appdir}}/Flare.app`, not an interpolated `appdir`, and not a `chdir:` symbol. Both of
+  the obvious guesses fail silently mid-install with the app still landing in place.
 - **The build is native-arch and ad-hoc signed.** For a universal binary, change the Makefile
   to `swift build -c release --arch arm64 --arch x86_64`. For a Developer ID build, replace
   `--sign -` with your identity.

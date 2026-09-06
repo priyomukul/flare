@@ -12,15 +12,17 @@ cask "flare" do
     strategy :github_latest
   end
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Flare.app"
 
   # Flare is ad-hoc signed rather than notarised, so Gatekeeper would refuse to
   # open what Homebrew just downloaded. Drop the quarantine flag it sets.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Flare.app"]
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args:           ["-dr", "com.apple.quarantine", "{{appdir}}/Flare.app"],
+        writable_paths: ["{{appdir}}/Flare.app"],
+        must_succeed:   false
   end
 
   uninstall quit:       "com.priyomukul.flare",
