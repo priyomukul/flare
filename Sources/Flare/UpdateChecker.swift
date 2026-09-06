@@ -10,8 +10,11 @@ final class UpdateChecker {
     static let shared = UpdateChecker()
     static let didChange = Notification.Name("FlareUpdateCheckerDidChange")
 
-    /// How stale a check has to be before the hourly tick runs another one.
+    /// How stale a *successful* check has to be before the hourly tick runs another.
     static let checkInterval: TimeInterval = 24 * 60 * 60
+    /// Floor between attempts, so a Mac that is simply offline retries on the
+    /// next hourly tick instead of once a day, without hammering GitHub.
+    static let retryInterval: TimeInterval = 15 * 60
     private static let endpoint = URL(string: "https://api.github.com/repos/priyomukul/flare/releases/latest")!
     private static let releasesPage = URL(string: "https://github.com/priyomukul/flare/releases/latest")!
 
@@ -27,6 +30,21 @@ final class UpdateChecker {
     private(set) var state: State = .idle
     private var timer: Timer?
     private var inFlight: URLSessionDataTask?
+    /// Not persisted: a relaunch should be allowed to retry straight away.
+    private var lastAttempt: Date?
+
+    /// Ephemeral on purpose. Nothing about a version check belongs in the shared
+    /// cookie, credential or URL caches, and the resource timeout means a
+    /// connection that trickles bytes cannot pin the checker at .checking.
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 30
+        config.httpCookieAcceptPolicy = .never
+        config.httpShouldSetCookies = false
+        config.urlCache = nil
+        return URLSession(configuration: config)
+    }()
 
     private init() {}
 
@@ -67,8 +85,15 @@ final class UpdateChecker {
 
     @objc private func tick() {
         guard Prefs.autoCheckUpdates else { return }
-        let last = Prefs.lastUpdateCheck ?? .distantPast
-        guard Date().timeIntervalSince(last) >= Self.checkInterval else { return }
+
+        // A stored time in the *future* — a bad clock, an NTP step, a plist
+        // restored from another machine — must read as stale. Left alone it is a
+        // negative interval that never reaches 24h, which would disable
+        // automatic checks permanently, across every future launch.
+        let elapsed = Date().timeIntervalSince(Prefs.lastUpdateCheck ?? .distantPast)
+        guard elapsed < 0 || elapsed >= Self.checkInterval else { return }
+
+        if let lastAttempt, Date().timeIntervalSince(lastAttempt) < Self.retryInterval { return }
         check()
     }
 
@@ -77,6 +102,7 @@ final class UpdateChecker {
     func check() {
         dispatchPrecondition(condition: .onQueue(.main))
         if case .checking = state { return }
+        lastAttempt = Date()
         state = .checking
         announce()
 
@@ -88,19 +114,28 @@ final class UpdateChecker {
                          forHTTPHeaderField: "User-Agent")
 
         inFlight?.cancel()
-        inFlight = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+        inFlight = Self.session.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async { self?.finish(data: data, response: response, error: error) }
         }
         inFlight?.resume()
     }
 
     private func finish(data: Data?, response: URLResponse?, error: Error?) {
+        // Deliberately not stamping Prefs.lastUpdateCheck here. It records a
+        // check that GitHub actually answered, and gates the next automatic one
+        // by a day — a DNS failure ten seconds after login, before Wi-Fi has
+        // associated, must not count as that day's check.
+        if let error, (error as NSError).code == NSURLErrorCancelled {
+            // We cancelled it. Record nothing, and do not leave .checking behind.
+            if case .checking = state {
+                state = .idle
+                announce()
+            }
+            return
+        }
         inFlight = nil
-        Prefs.lastUpdateCheck = Date()
 
         if let error {
-            // A cancelled request is us replacing it, not a failure worth showing.
-            if (error as NSError).code == NSURLErrorCancelled { return }
             state = .failed(error.localizedDescription)
             announce()
             return
@@ -121,10 +156,12 @@ final class UpdateChecker {
             return
         }
 
+        // Only now has GitHub actually answered.
+        Prefs.lastUpdateCheck = Date()
+
         let latest = Self.normalise(tag)
         if Self.isNewer(latest, than: currentVersion) {
-            let page = (json["html_url"] as? String).flatMap(URL.init(string:)) ?? Self.releasesPage
-            state = .available(version: latest, page: page)
+            state = .available(version: latest, page: Self.releasePage(from: json))
         } else {
             state = .upToDate
         }
@@ -141,6 +178,18 @@ final class UpdateChecker {
             pb.setString(homebrewCommand, forType: .string)
         }
         NSWorkspace.shared.open(page)
+    }
+
+    /// The response decides which page to open, so it only gets to choose among
+    /// GitHub URLs. Anything else falls back to the releases page.
+    private static func releasePage(from json: [String: Any]) -> URL {
+        guard let raw = json["html_url"] as? String,
+              let url = URL(string: raw),
+              url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased(),
+              host == "github.com" || host.hasSuffix(".github.com")
+        else { return releasesPage }
+        return url
     }
 
     // MARK: - Versions

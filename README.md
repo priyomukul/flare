@@ -50,9 +50,15 @@ page — or, on a Homebrew-managed copy, puts `brew upgrade --cask flare` on you
 first. Flare never downloads or installs anything by itself.
 
 That version check is the only thing Flare sends anywhere other than `127.0.0.1`. It is an
-unauthenticated `GET` to `api.github.com`, it carries nothing but a `Flare/<version>`
-user-agent, and **Settings ▸ Updates ▸ Check for updates automatically** turns it off. With it
-off, the menu item still works on demand.
+unauthenticated `GET` to `api.github.com` on an ephemeral URLSession — no cookies, no
+credentials, no cache — carrying nothing but a `Flare/<version>` user-agent. **Settings ▸
+Updates ▸ Check for updates automatically** turns it off; with it off, the menu item still
+works on demand.
+
+"Once a day" means once per *answer*. A check that never reached GitHub does not count, and is
+retried on the next hourly tick rather than a day later — otherwise a login item that starts
+ten seconds after boot, before Wi-Fi has associated, would fail once and then stay quiet until
+tomorrow.
 
 ## Build and run
 
@@ -403,7 +409,10 @@ Where the brief left something open, Flare took the simplest option:
   third-party dependency. It reads one JSON document and changes a menu item. Everything that
   actually installs remains something you triggered — `brew upgrade`, or a drag from the DMG.
 - **It runs hourly but only acts once a day.** A 24-hour timer on a Mac that sleeps would
-  simply never fire; comparing elapsed time against a stored timestamp survives sleep.
+  simply never fire; comparing elapsed time against a stored timestamp survives sleep. Only a
+  check GitHub actually answered updates that timestamp, and a timestamp in the future — a bad
+  clock, an NTP step, a plist copied off another machine — is treated as stale rather than as
+  a negative interval that would disable checking permanently.
 - **The DMG is built with `hdiutil` and Finder AppleScript only** — no `create-dmg` or any
   other third-party tool, matching the app's own zero-dependency rule. Two ordering traps
   are worth knowing if you touch `scripts/make-dmg.sh`: Finder deletes any

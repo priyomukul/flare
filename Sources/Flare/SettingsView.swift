@@ -227,8 +227,15 @@ final class SettingsWindowController {
     private var window: NSWindow?
 
     func show() {
-        if window == nil {
-            let hosting = NSHostingController(rootView: SettingsView())
+        // A fresh view every time. Reopening a cached NSHostingController does
+        // not fire onAppear again, so the launch-at-login state, the listener
+        // status and "Checked N ago" would all be whatever they were when the
+        // window was first built.
+        let hosting = NSHostingController(rootView: SettingsView())
+        if let window {
+            window.contentViewController = hosting
+            window.setContentSize(NSSize(width: 460, height: 620))
+        } else {
             let w = NSWindow(contentViewController: hosting)
             w.title = "Flare Settings"
             w.styleMask = [.titled, .closable]
