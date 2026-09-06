@@ -74,11 +74,19 @@ final class Reminder {
         onFlash?()
     }
 
+    /// I am demonstrably at the keyboard — disarm the return-to-desk trigger so
+    /// it does not fire a second flash moments after a manual one.
+    func noteUserIsPresent() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        wasAway = false
+        lastIdle = currentIdle()
+    }
+
     @objc private func tick() {
         // A timed pause that has run out behaves like Resume.
-        if PauseController.shared.expireIfNeeded(), !AgentStore.shared.isEmpty {
-            onFlash?()
-            lastIdle = currentIdle()
+        if PauseController.shared.expireIfNeeded() {
+            if !AgentStore.shared.isEmpty { onFlash?() }
+            noteUserIsPresent()
             return
         }
 

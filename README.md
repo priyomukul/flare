@@ -258,6 +258,26 @@ not start a new flash within 0.5s of the last one, so it can never exceed two fl
 second no matter how many signals arrive at once — well under the three-per-second ceiling.
 Turn the peak opacity down if 35% is still too much.
 
+## Checking it yourself
+
+Most of Flare can be checked from a terminal — `make smoke` covers every route, and
+
+```sh
+defaults write com.priyomukul.flare reminderInterval -float 30
+```
+
+plus one waiting agent will show you the nag loop in half a minute (`defaults delete
+com.priyomukul.flare reminderInterval` to put it back).
+
+Two things need you at the keyboard, because they need real hardware events:
+
+- **Full-screen coverage** — put an app in full screen, then `curl -X POST
+  http://127.0.0.1:4242/waiting -d '{"agent":"test"}'` from another machine's SSH session or a
+  second terminal. The flash should land on top.
+- **Display sleep and monitor plug/unplug** — leave an agent waiting, sleep the displays
+  (`pmset displaysleepnow`) or unplug an external monitor, then come back. Flare should flash
+  once on your return, with no leftover overlay showing on any screen.
+
 ---
 
 ## Uninstall

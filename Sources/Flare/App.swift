@@ -86,7 +86,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let pause = PauseController.shared
-        pause.expireIfNeeded()
 
         if !HTTPListener.shared.isHealthy {
             add(to: menu, title: "⚠︎ \(HTTPListener.shared.status)", action: nil)
@@ -115,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if pause.isPaused {
             add(to: menu, title: "Resume", action: #selector(resume))
         } else {
-            let item = add(to: menu, title: "Pause", action: nil)
+            let item = add(to: menu, title: "Pause", action: nil, enabled: true)
             let sub = NSMenu()
             addPause(to: sub, title: "15 minutes", seconds: 15 * 60)
             addPause(to: sub, title: "1 hour", seconds: 60 * 60)
@@ -131,11 +130,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(to: menu, title: "Quit Flare", action: #selector(quit)).keyEquivalent = "q"
     }
 
+    /// `enabled` defaults to "has an action". Pass it explicitly for a submenu
+    /// parent, which has no action of its own but must still open.
     @discardableResult
-    private func add(to menu: NSMenu, title: String, action: Selector?) -> NSMenuItem {
+    private func add(to menu: NSMenu, title: String, action: Selector?,
+                     enabled: Bool? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = action == nil ? nil : self
-        item.isEnabled = action != nil
+        item.isEnabled = enabled ?? (action != nil)
         menu.addItem(item)
         return item
     }
@@ -175,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Deliberately ignores pause — it is an explicit request to see a flash.
     @objc private func testFlash() {
+        Reminder.shared.noteUserIsPresent()
         FlashOverlay.shared.flash(label: "Flare · test flash")
     }
 
@@ -189,6 +192,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func resume() {
         PauseController.shared.resume()
+        // Resuming from the menu is itself proof I am back at the desk; without
+        // this the 5s tick would flash again a moment later.
+        Reminder.shared.noteUserIsPresent()
         if !AgentStore.shared.isEmpty { flashNow() }
     }
 

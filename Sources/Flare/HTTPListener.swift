@@ -119,15 +119,19 @@ final class HTTPListener {
     private var listener: NWListener?
     private var sessions: [ObjectIdentifier: Session] = [:]
     private var desiredPort = Prefs.defaultPort
+    /// Bumped by every explicit start/stop, so a retry scheduled by an older
+    /// attempt can never cancel or resurrect the listener that replaced it.
+    private var generation: UInt64 = 0
+    private var retryDelay: TimeInterval = 0
+    private var retryPending = false
+    private static let firstRetryDelay: TimeInterval = 2
+    private static let maxRetryDelay: TimeInterval = 30
 
-    private var _status: String = "stopped"
     private let statusLock = NSLock()
-    /// Human-readable listener state for the menu: "listening on 4242", or an error.
-    private(set) var status: String {
-        get { statusLock.withLock { _status } }
-        set { statusLock.withLock { _status = newValue } }
-    }
+    private var _status = "stopped"
     private var _healthy = false
+    /// Human-readable listener state for the menu: "listening on 4242", or an error.
+    var status: String { statusLock.withLock { _status } }
     var isHealthy: Bool { statusLock.withLock { _healthy } }
 
     private static let connectionTimeout: TimeInterval = 5
@@ -148,20 +152,28 @@ final class HTTPListener {
         queue.async { [weak self] in self?.startOnQueue(port: port) }
     }
 
-    /// No-op when the port has not actually changed.
+    /// No-op when the port has not changed and the listener is up or already
+    /// waiting on a retry.
     func restartIfNeeded(port: Int) {
         queue.async { [weak self] in
             guard let self else { return }
-            guard port != self.desiredPort || self.listener == nil else { return }
+            guard port != self.desiredPort
+                    || (self.listener == nil && !self.retryPending) else { return }
             self.startOnQueue(port: port)
         }
     }
 
     func stop() {
-        queue.async { [weak self] in self?.stopOnQueue() }
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.generation &+= 1
+            self.retryPending = false
+            self.teardown()
+            self.setStatus("stopped", healthy: false)
+        }
     }
 
-    private func stopOnQueue() {
+    private func teardown() {
         listener?.stateUpdateHandler = nil
         listener?.cancel()
         listener = nil
@@ -172,9 +184,33 @@ final class HTTPListener {
         sessions.removeAll()
     }
 
+    /// An explicit (re)start. Invalidates any retry still in flight.
     private func startOnQueue(port: Int) {
-        stopOnQueue()
+        generation &+= 1
+        retryPending = false
+        retryDelay = 0
         desiredPort = port
+        bind(port: port, generation: generation)
+    }
+
+    /// Schedule another attempt at the same port. A busy port usually frees up
+    /// (a leftover instance quitting, `make run` replacing the bundled app), and
+    /// without this a conflict at launch would leave Flare deaf for the session.
+    private func scheduleRetry(port: Int, generation gen: UInt64) -> TimeInterval {
+        retryDelay = retryDelay == 0 ? Self.firstRetryDelay
+                                     : min(retryDelay * 2, Self.maxRetryDelay)
+        retryPending = true
+        let delay = retryDelay
+        queue.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, gen == self.generation else { return }
+            self.retryPending = false
+            self.bind(port: port, generation: gen)
+        }
+        return delay
+    }
+
+    private func bind(port: Int, generation gen: UInt64) {
+        teardown()
         guard let nwPort = NWEndpoint.Port(rawValue: UInt16(clamping: port)) else {
             setStatus("invalid port \(port)", healthy: false)
             return
@@ -192,17 +228,24 @@ final class HTTPListener {
         do {
             let l = try NWListener(using: params)
             l.stateUpdateHandler = { [weak self] state in
-                guard let self else { return }
+                // Runs on `queue`, so reading generation here is safe.
+                guard let self, gen == self.generation else { return }
                 switch state {
                 case .ready:
+                    self.retryDelay = 0
                     self.setStatus("listening on 127.0.0.1:\(port)", healthy: true)
                 case .waiting(let error):
-                    self.setStatus("port \(port) unavailable — \(Self.describe(error))", healthy: false)
+                    // Network.framework retries this state on its own.
+                    self.setStatus("port \(port) unavailable — \(Self.describe(error))",
+                                   healthy: false)
                 case .failed(let error):
-                    self.setStatus("failed on port \(port) — \(Self.describe(error))", healthy: false)
-                    self.queue.async { self.stopOnQueue() }
-                case .cancelled:
-                    self.setStatus("stopped", healthy: false)
+                    let delay = self.scheduleRetry(port: port, generation: gen)
+                    self.setStatus("port \(port) — \(Self.describe(error)); retrying in \(Int(delay))s",
+                                   healthy: false)
+                    self.queue.async { [weak self] in
+                        guard let self, gen == self.generation else { return }
+                        self.teardown()
+                    }
                 default:
                     break
                 }
@@ -213,7 +256,9 @@ final class HTTPListener {
             listener = l
             l.start(queue: queue)
         } catch {
-            setStatus("could not listen on \(port) — \(error.localizedDescription)", healthy: false)
+            let delay = scheduleRetry(port: port, generation: gen)
+            setStatus("could not listen on \(port) — \(error.localizedDescription); retrying in \(Int(delay))s",
+                      healthy: false)
         }
     }
 
@@ -358,8 +403,9 @@ final class HTTPListener {
                          contentType: String, body: Data) {
         guard !session.answered else { return }
         session.answered = true
-        session.timeout?.cancel()
-        session.timeout = nil
+        // Deliberately leave the watchdog armed. If the peer stops reading,
+        // .contentProcessed never fires and this is the only thing that closes
+        // the session.
 
         var head = "HTTP/1.1 \(status) \(reason)\r\n"
         head += "Content-Type: \(contentType)\r\n"
