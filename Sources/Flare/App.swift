@@ -27,6 +27,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Flare", action: #selector(quit), keyEquivalent: "q").target = self
         statusItem.menu = menu
+
+        HTTPListener.shared.onWaiting = { [weak self] in self?.flashForWaiting() }
+        HTTPListener.shared.start(port: Prefs.port)
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(prefsChanged), name: Prefs.didChange, object: nil)
+    }
+
+    func applicationWillTerminate(_ note: Notification) {
+        HTTPListener.shared.stop()
+    }
+
+    @objc private func prefsChanged() {
+        HTTPListener.shared.restartIfNeeded(port: Prefs.port)
+    }
+
+    private func flashForWaiting() {
+        FlashOverlay.shared.flash(label: AgentStore.shared.summaryLabel())
     }
 
     static func icon(active: Bool) -> NSImage? {
