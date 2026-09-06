@@ -34,6 +34,7 @@ no Dock icon), ad-hoc signs it, and launches it. Look for the beacon in the menu
 | `make stop` | Quit a running Flare |
 | `make install` | Copy the bundle to `/Applications` |
 | `make debug` | The same bundle, built `-c debug` |
+| `make icon` | Rebuild `Resources/Flare.icns` from the 1024pt PNG |
 | `make smoke` | Run `scripts/smoke.sh` against a running Flare |
 | `make clean` | Remove `.build` and `dist` |
 
@@ -316,7 +317,11 @@ Sources/Flare/
   Prefs.swift          UserDefaults
   SettingsView.swift   The one SwiftUI view, plus SMAppService and its window
   HooksSnippet.swift   The hooks JSON, with the live port
-Resources/Info.plist   LSUIElement, bundle id
+Resources/
+  Info.plist           LSUIElement, bundle id, icon name
+  Flare.icns           App icon, all ten sizes
+  flare-icon-1024.png  Icon source; `make icon` regenerates the .icns from this
+  flare-icon.svg       Vector original
 Makefile               Build, bundle, sign, run
 scripts/smoke.sh       Route-by-route check against a running Flare
 ```
@@ -338,6 +343,10 @@ Where the brief left something open, Flare took the simplest option:
   -d` / `--data-binary` always sends a length, so this never comes up in practice.
 - **Overlay windows are ordered out between flashes**, so they cost nothing, but they are
   ordinary windows — they will appear in screen recordings taken during a flash.
+- **The menu bar keeps the `light.beacon.max` SF Symbol** rather than the app icon. Status
+  items need a template image so macOS can tint them for a light or dark menu bar and invert
+  them when the menu is open; a full-colour icon cannot do either. The app icon is used for
+  Finder, Get Info and the Settings window.
 - **Settings shows the listener's live state** next to the port. The brief did not list it,
   but without it a busy port fails silently and Flare just never flashes again.
 - **The build is native-arch and ad-hoc signed.** For a universal binary, change the Makefile

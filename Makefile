@@ -4,7 +4,7 @@ CONFIG    := release
 DIST      := dist
 APP       := $(DIST)/$(APP_NAME).app
 
-.PHONY: all build app run stop clean install smoke debug
+.PHONY: all build app run stop clean install smoke debug icon
 
 all: app
 
@@ -18,6 +18,7 @@ app: build
 	@BIN="$$(swift build -c $(CONFIG) --show-bin-path)/$(APP_NAME)"; \
 	 test -x "$$BIN" || { echo "missing binary: $$BIN"; exit 1; }; \
 	 cp "$$BIN" "$(APP)/Contents/MacOS/$(APP_NAME)"
+	@cp Resources/Flare.icns "$(APP)/Contents/Resources/Flare.icns"
 	@cp Resources/Info.plist "$(APP)/Contents/Info.plist"
 	@printf 'APPL????' > "$(APP)/Contents/PkgInfo"
 	@codesign --force --sign - --identifier "$(BUNDLE_ID)" "$(APP)"
@@ -29,6 +30,16 @@ run: stop app
 
 stop:
 	@pkill -x $(APP_NAME) 2>/dev/null || true
+
+## Rebuild Flare.icns from the 1024pt source. Only needed if the artwork changes.
+icon:
+	@SET="$$(mktemp -d)/Flare.iconset"; mkdir -p "$$SET"; \
+	 for s in 16 32 128 256 512; do \
+	   sips -s format png -z $$s $$s Resources/flare-icon-1024.png --out "$$SET/icon_$${s}x$${s}.png" >/dev/null; \
+	   sips -s format png -z $$((s*2)) $$((s*2)) Resources/flare-icon-1024.png --out "$$SET/icon_$${s}x$${s}@2x.png" >/dev/null; \
+	 done; \
+	 iconutil -c icns -o Resources/Flare.icns "$$SET"
+	@echo "rebuilt Resources/Flare.icns"
 
 ## A debug build in the same bundle layout, for symbolicated crashes.
 debug:

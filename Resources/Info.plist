@@ -8,6 +8,8 @@
 	<string>Flare</string>
 	<key>CFBundleExecutable</key>
 	<string>Flare</string>
+	<key>CFBundleIconFile</key>
+	<string>Flare</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.priyomukul.flare</string>
 	<key>CFBundleInfoDictionaryVersion</key>
