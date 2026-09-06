@@ -129,6 +129,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         add(to: menu, title: "Copy Claude Code hooks snippet", action: #selector(copyHooks))
+
+        // macOS gives the standard Settings item a gear automatically, and the
+        // image column is laid out per section — so anything sharing a section
+        // with it picks up a blank 40pt gutter. Settings sits on its own.
+        menu.addItem(.separator())
         add(to: menu, title: "Settings…", action: #selector(openSettings)).keyEquivalent = ","
 
         menu.addItem(.separator())
