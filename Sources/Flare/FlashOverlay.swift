@@ -110,8 +110,11 @@ final class FlashOverlay {
     static let minGap: TimeInterval = 0.5
 
     private var windows: [OverlayWindow] = []
-    private var lastStart = Date.distantPast
+    /// Monotonic — a backwards wall-clock step must not disable flashing.
+    private var lastStart: CFTimeInterval = -.greatestFiniteMagnitude
+    private var lastLabel = "Flare"
     private var teardown: DispatchWorkItem?
+    private var pendingRestart: DispatchWorkItem?
 
     private init() {
         NotificationCenter.default.addObserver(
@@ -125,15 +128,20 @@ final class FlashOverlay {
     }
 
     /// Flash every screen. Safe to call at any rate; excess calls only refresh
-    /// the badge text of the in-flight flash.
-    func flash(label: String) {
+    /// the badge text of the in-flight flash. Returns true if a pulse actually
+    /// started, false if the photosensitivity floor swallowed it.
+    @discardableResult
+    func flash(label: String) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
+        lastLabel = label
+        pendingRestart?.cancel()
+        pendingRestart = nil
         syncWindows()
-        guard !windows.isEmpty else { return }
+        guard !windows.isEmpty else { return false }
         for w in windows { (w.contentView as? FlashContentView)?.setLabel(label) }
 
-        let now = Date()
-        guard now.timeIntervalSince(lastStart) >= Self.minGap else { return }
+        let now = CACurrentMediaTime()
+        guard now - lastStart >= Self.minGap else { return false }
         lastStart = now
 
         let color = Prefs.flashColor
@@ -149,6 +157,7 @@ final class FlashOverlay {
         let work = DispatchWorkItem { [weak self] in self?.hide() }
         teardown = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.flashDuration + 0.08, execute: work)
+        return true
     }
 
     /// Order the windows out so they cost nothing between flashes.
@@ -163,11 +172,31 @@ final class FlashOverlay {
 
     // MARK: - Window lifecycle
 
+    /// Screen geometry changed, or the Mac woke. Both can land in the middle of
+    /// a flash — on wake they reliably do, which is exactly when I most need to
+    /// see one. Rebuild and re-run rather than dropping it on the floor.
     @objc private func displaysChanged() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            let interrupted = self.teardown != nil || self.pendingRestart != nil
+            self.pendingRestart?.cancel()
+            self.pendingRestart = nil
             self.hide()
             self.destroyWindows()
+            guard interrupted else { return }
+
+            // The interrupted flash never rendered, so it must not spend the
+            // rate-limit budget. The delay coalesces the burst of notifications
+            // a single wake produces into one restart.
+            self.lastStart = -.greatestFiniteMagnitude
+            let label = self.lastLabel
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.pendingRestart = nil
+                self.flash(label: label)
+            }
+            self.pendingRestart = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
         }
     }
 

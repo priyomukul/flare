@@ -33,6 +33,7 @@ no Dock icon), ad-hoc signs it, and launches it. Look for the beacon in the menu
 | `make run` | `make app`, then relaunch |
 | `make stop` | Quit a running Flare |
 | `make install` | Copy the bundle to `/Applications` |
+| `make debug` | The same bundle, built `-c debug` |
 | `make smoke` | Run `scripts/smoke.sh` against a running Flare |
 | `make clean` | Remove `.build` and `dist` |
 
@@ -62,7 +63,7 @@ for one repo.
           "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/waiting -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 || true" } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "async": true,
+      { "hooks": [ { "type": "command",
           "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/waiting -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 || true" } ] }
     ],
     "PreToolUse": [
@@ -75,8 +76,7 @@ for one repo.
           "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/clear -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 || true" } ] }
     ],
     "PostToolUse": [
-      { "matcher": "AskUserQuestion",
-        "hooks": [ { "type": "command",
+      { "hooks": [ { "type": "command",
           "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/clear -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 || true" } ] }
     ],
     "SessionEnd": [
@@ -97,8 +97,20 @@ No single hook covers every way Claude ends up waiting on you:
 | `Stop` | The end of every turn — Claude is waiting for your next instruction |
 | `PreToolUse` on `AskUserQuestion` | Claude asking you a question, which `Notification` does not fire for |
 
-And three that clear: `UserPromptSubmit` (you replied), `PostToolUse` on `AskUserQuestion`
-(you answered the question), `SessionEnd` (the session is gone).
+And three that clear: `UserPromptSubmit` (you replied), `PostToolUse` (a tool ran to
+completion, which is the only evidence that you answered the permission prompt that raised
+the entry), `SessionEnd` (the session is gone).
+
+`PostToolUse` carries no matcher on purpose. If it only cleared on `AskUserQuestion`, then
+approving a permission prompt would leave the entry standing and Flare would keep flashing
+every two minutes while Claude worked away on exactly what you just allowed. The cost is one
+loopback POST — about 10ms — per tool call; narrow it back to `"matcher": "AskUserQuestion"`
+if you would rather pay nothing and clear a little later.
+
+`Stop` is not `async`, unlike the other two waiting triggers. The turn has already ended, so
+there is no agent latency to protect, and an async POST can land *after* the synchronous
+`UserPromptSubmit` clear that follows it — which would strand an agent that then nags forever
+with nothing actually waiting.
 
 ### Why the commands look like that
 
@@ -109,9 +121,10 @@ And three that clear: `UserPromptSubmit` (you replied), `PostToolUse` on `AskUse
 - **`--data-binary @-`** pipes the hook's own stdin payload straight through. Flare reads
   `session_id`, `cwd`, `hook_event_name`, `notification_type`, `message` and `tool_name`
   from it; you do not have to shape anything yourself.
-- **`async: true` on the waiting hooks** so they never sit in the agent's path. The clearing
-  hooks run synchronously — they are equally fast, and clearing wants to have happened
-  before the next flash decision.
+- **`async: true` on `Notification` and `PreToolUse`** so they never sit in the agent's path
+  while it is genuinely blocked on you. Everything else runs synchronously: those hooks fire
+  when nothing is waiting on the result anyway, and ordering matters more than the
+  millisecond.
 
 ### Conductor
 
@@ -230,7 +243,7 @@ make smoke          # or: scripts/smoke.sh 4242
 | Remind every | 120s | Floor of 30s. |
 | Colour | `#FF4500` | Red-orange. |
 | Peak opacity | 35% | How solid the flash gets. |
-| Launch at login | off | `SMAppService`; works with the ad-hoc signed bundle. |
+| Launch at login | off | `SMAppService`; works with the ad-hoc signed bundle. Enable it from an installed copy — a login item pointing into `dist/` dies at the next `make clean`, and Flare says so if you try. |
 
 Settings live in `UserDefaults` under `com.priyomukul.flare`, so you can also poke at them
 directly:
@@ -315,8 +328,8 @@ Where the brief left something open, Flare took the simplest option:
 - **`agent` wins over `session_id`** if a body somehow contains both — a caller that names
   itself explicitly meant it.
 - **Duplicate names** get the first four characters of the session id in parentheses:
-  `api-server (3f2b)`. Only hook payloads can collide; simple payloads with the same name
-  *are* the same agent.
+  `api-server (3f2b)`. A simple payload keeps its bare name even in a collision, since its id
+  *is* its name and `web (web)` would say nothing.
 - **`since` survives a refresh.** Repeated `Stop` hooks for one session keep showing how long
   that session has actually been waiting, not how long since the last hook.
 - **An expired timed pause behaves like Resume** — it flashes immediately if something is
@@ -325,12 +338,23 @@ Where the brief left something open, Flare took the simplest option:
   -d` / `--data-binary` always sends a length, so this never comes up in practice.
 - **Overlay windows are ordered out between flashes**, so they cost nothing, but they are
   ordinary windows — they will appear in screen recordings taken during a flash.
+- **Settings shows the listener's live state** next to the port. The brief did not list it,
+  but without it a busy port fails silently and Flare just never flashes again.
 - **The build is native-arch and ad-hoc signed.** For a universal binary, change the Makefile
   to `swift build -c release --arch arm64 --arch x86_64`. For a Developer ID build, replace
   `--sign -` with your identity.
-- **`Notification` matches `permission_prompt|idle_prompt|elicitation_dialog`.** Claude Code
-  also emits `agent_needs_input` and `agent_completed`; add them to the matcher if you want
-  subagent activity to flash too.
+- **`Notification` matches `permission_prompt|idle_prompt|elicitation_dialog`,** the three the
+  brief named. Claude Code emits several other types you may want, depending on how you work:
+  `elicitation_url_dialog` (an elicitation that wants you to open a URL),
+  `quota_auto_resume_stale` / `quota_auto_resume_disabled`, and `agent_needs_input` /
+  `agent_completed`. Add any of them to the matcher with `|`.
+- **Nothing is wired to `StopFailure`.** A turn that dies on an API error fires `StopFailure`
+  rather than `Stop`, so Flare will not flash for it. If you want that — arguably you do, since
+  a failed turn is waiting on you as much as a finished one — add a matcher-less `StopFailure`
+  entry using the same command as `Stop`.
+- **Two changes from the brief's original snippet,** both to make the specified behaviour
+  actually work: `PostToolUse` lost its `AskUserQuestion` matcher, and `Stop` lost `async`.
+  Both are explained above.
 
 ## Troubleshooting
 

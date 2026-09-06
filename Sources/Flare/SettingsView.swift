@@ -68,9 +68,6 @@ struct SettingsView: View {
                     }
                 }
                 .onChange(of: peakOpacity) { _, new in Prefs.peakOpacity = new }
-                Button("Preview flash") {
-                    FlashOverlay.shared.flash(label: "Flare · test flash")
-                }
             }
 
             Section {
@@ -133,6 +130,11 @@ enum LoginItem {
         do {
             if enabled {
                 try SMAppService.mainApp.register()
+                if Bundle.main.bundlePath.contains("/dist/") {
+                    return "Registered — but this copy lives in the build tree, and `make clean` "
+                        + "would leave a login item pointing at nothing. Run `make install` and "
+                        + "enable it from /Applications instead."
+                }
             } else {
                 try SMAppService.mainApp.unregister()
             }

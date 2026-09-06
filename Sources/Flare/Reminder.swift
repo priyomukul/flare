@@ -74,6 +74,13 @@ final class Reminder {
         onFlash?()
     }
 
+    /// Re-phase the nag off the flash that just happened, so a signal flash and
+    /// a reminder flash can never land a fraction of a second apart.
+    func noteFlashed() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        scheduleReminder()
+    }
+
     /// I am demonstrably at the keyboard — disarm the return-to-desk trigger so
     /// it does not fire a second flash moments after a manual one.
     func noteUserIsPresent() {

@@ -30,8 +30,14 @@ run: stop app
 stop:
 	@pkill -x $(APP_NAME) 2>/dev/null || true
 
+## A debug build in the same bundle layout, for symbolicated crashes.
+debug:
+	@$(MAKE) CONFIG=debug app
+
 ## Move to /Applications, which is where login-at-launch registration is reliable.
-install: app
+## Depends on stop: copying over a running app would otherwise leave two Flares,
+## and whichever loses the race for the port sits there retrying.
+install: stop app
 	@rm -rf "/Applications/$(APP_NAME).app"
 	@cp -R "$(APP)" /Applications/
 	@echo "installed /Applications/$(APP_NAME).app"

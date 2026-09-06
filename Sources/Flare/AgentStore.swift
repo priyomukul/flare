@@ -85,7 +85,9 @@ final class AgentStore {
             let ambiguous = ids.count > 1
             for id in ids {
                 guard var a = storage[id] else { continue }
-                a.displayName = ambiguous ? "\(name) (\(a.id.prefix(4)))" : name
+                // A simple payload's id *is* its name, so "web (web)" would add
+                // nothing — only hook payloads get a session-id suffix.
+                a.displayName = ambiguous && a.id != name ? "\(name) (\(a.id.prefix(4)))" : name
                 storage[id] = a
             }
         }

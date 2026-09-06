@@ -6,8 +6,17 @@ import Foundation
 ///   Notification   — permission prompts, idle prompts, elicitation dialogs
 ///   Stop           — end of a turn, i.e. Claude wants the next instruction
 ///   PreToolUse     — AskUserQuestion, which Notification does not fire for
-/// and three "clear" triggers: UserPromptSubmit, PostToolUse(AskUserQuestion),
-/// SessionEnd.
+/// and three "clear" triggers: UserPromptSubmit, PostToolUse and SessionEnd.
+///
+/// PostToolUse clears on *every* tool, not just AskUserQuestion. A permission
+/// prompt raises a waiting entry, and the only evidence that I answered it is
+/// the tool then running to completion — without this, Flare keeps flashing
+/// every couple of minutes while Claude is busy working on what I just allowed.
+///
+/// Stop is deliberately not async. The turn has already ended, so there is no
+/// agent latency to protect, and an async POST can land *after* the synchronous
+/// UserPromptSubmit clear that follows it — stranding an agent that then nags
+/// forever with nothing actually waiting.
 ///
 /// Every command swallows stdout and never fails the hook, because
 /// UserPromptSubmit stdout is injected into Claude's context and a hook that
@@ -25,7 +34,7 @@ enum HooksSnippet {
                   "command": "\(waiting)" } ] }
             ],
             "Stop": [
-              { "hooks": [ { "type": "command", "async": true,
+              { "hooks": [ { "type": "command",
                   "command": "\(waiting)" } ] }
             ],
             "PreToolUse": [
@@ -38,8 +47,7 @@ enum HooksSnippet {
                   "command": "\(clear)" } ] }
             ],
             "PostToolUse": [
-              { "matcher": "AskUserQuestion",
-                "hooks": [ { "type": "command",
+              { "hooks": [ { "type": "command",
                   "command": "\(clear)" } ] }
             ],
             "SessionEnd": [
