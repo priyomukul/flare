@@ -1,5 +1,21 @@
 # Troubleshooting
 
+**`brew tap` fails with `Cannot tap priyomukul/flare: invalid syntax in tap!`**, after a wall
+of `Invalid cask (macOS NN on arm)` / `Refusing to load cask ... from untrusted tap` lines.
+The tap is not really invalid — Homebrew loads and validates the cask on every platform while
+tapping, each load is refused because the tap is not trusted yet, and the failures are
+reported as a syntax error. Trust it *before* tapping, using the full URL:
+
+```sh
+brew trust https://github.com/priyomukul/flare
+brew tap priyomukul/flare https://github.com/priyomukul/flare
+brew install --cask flare
+```
+
+`brew trust priyomukul/flare` is not enough on its own here. A tap with a custom remote is
+identified by its URL, so the short name records an entry that never matches. If you already
+have a bad entry, `brew untrust priyomukul/flare` and redo it with the URL.
+
 **Nothing flashes.** Check the listener is up: `curl -s http://127.0.0.1:4242/health` should
 print `ok`. If the port is in use, the menu shows the error at the top and Settings shows it
 next to the port field — pick another port and repaste the snippet. Flare retries a busy port

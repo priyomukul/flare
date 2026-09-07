@@ -87,7 +87,15 @@ be wrong. Read this before changing the corresponding code.
   obvious guesses fail silently mid-install with the app still landing in place, so the
   quarantine flag survives and you only find out at first launch.
 - **Homebrew 6 refuses to load a cask from an untrusted third-party tap at all**, with or
-  without arbitrary Ruby, hence the one-off `brew trust`.
+  without arbitrary Ruby, hence the one-off `brew trust` — and it has to run *before* `brew
+  tap`. Most Homebrew versions load every cask to validate it while tapping, so an untrusted
+  tap fails with a misleading `Cannot tap: invalid syntax in tap!`. Newer Homebrew has an
+  escape hatch (`Trust.explicitly_allowed?`, trust.rb) that allows a cask when the tap name
+  appears in `ARGV`, which makes `brew tap user/name` work untrusted — so testing the flow on
+  a bleeding-edge checkout hides the bug entirely. It did here.
+- **The trust entry must be the tap's URL, not `user/name`.** `trusted_entry_prefix?` keys on
+  `tap.reference`, which for a custom remote is the URL. Trusting the short name before the
+  tap exists records something that never matches once it does.
 - **`depends_on macos: :sonoma`** — the bare symbol now means "at least"; the old
   `">= :sonoma"` string form is deprecated.
 - **The build is native-arch and ad-hoc signed.** For a universal binary, change the Makefile

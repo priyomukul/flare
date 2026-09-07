@@ -74,14 +74,17 @@ ones running inside [Conductor](https://conductor.build), starts reporting for i
 **Homebrew** — one command, and `brew upgrade` keeps it current:
 
 ```sh
+brew trust https://github.com/priyomukul/flare
 brew tap priyomukul/flare https://github.com/priyomukul/flare
-brew trust priyomukul/flare
 brew install --cask flare
 open -a Flare
 ```
 
-Homebrew 6 asks you to trust any third-party tap before it will load a cask from it — that
-is the middle line, and it is a one-off.
+Homebrew 6 makes you trust a third-party tap before it will load a cask from it. That first
+line is a one-off, and it has to come **first** — most Homebrew versions load and validate the
+cask during `brew tap` itself, so tapping an untrusted tap fails outright with
+`Cannot tap: invalid syntax in tap!`. It also has to be the full URL rather than
+`priyomukul/flare`: a tap with a custom remote is identified by its URL.
 
 **Or the drag-and-drop installer** — grab `Flare-<version>.dmg` from
 [Releases](https://github.com/priyomukul/flare/releases), open it, and drag Flare into
