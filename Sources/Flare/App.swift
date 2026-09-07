@@ -142,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(to: menu, title: "Settings…", action: #selector(openSettings)).keyEquivalent = ","
 
         menu.addItem(.separator())
+        add(to: menu, title: "About Flare", action: #selector(openAbout))
         add(to: menu, title: "Quit Flare", action: #selector(quit)).keyEquivalent = "q"
     }
 
@@ -171,6 +172,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .idle, .upToDate, .failed:
             add(to: menu, title: "Check for Updates…", action: #selector(checkForUpdates))
         }
+    }
+
+    // MARK: - About
+
+    static let developer = "Priyo Mukul"
+    static let repoURL = URL(string: "https://github.com/priyomukul/flare")!
+
+    /// The standard panel already draws the icon, the name and "Version x (y)";
+    /// credits carries the rest. `applicationVersion` is passed explicitly so
+    /// `swift run`, which has no bundle to read it from, still shows something.
+    private static var aboutOptions: [NSApplication.AboutPanelOptionKey: Any] {
+        [.applicationName: "Flare",
+         .applicationVersion: UpdateChecker.shared.currentVersion,
+         .credits: aboutCredits]
+    }
+
+    private static var aboutCredits: NSAttributedString {
+        let font = NSFont.systemFont(ofSize: 11)
+        let centred = NSMutableParagraphStyle()
+        centred.alignment = .center
+
+        let text = NSMutableAttributedString(
+            string: """
+            Flashes the screen when an AI agent is waiting on you.
+            Menu bar only, no dependencies, nothing leaves 127.0.0.1
+            but the daily version check.
+
+            By \(developer)
+
+            """,
+            attributes: [.font: font, .foregroundColor: NSColor.labelColor])
+        // NSAttributedString.Key.link makes this clickable in the panel's text view.
+        text.append(NSAttributedString(string: repoURL.absoluteString,
+                                       attributes: [.font: font, .link: repoURL]))
+        text.addAttribute(.paragraphStyle, value: centred,
+                          range: NSRange(location: 0, length: text.length))
+        return text
     }
 
     private func addPause(to menu: NSMenu, title: String, seconds: TimeInterval) {
@@ -244,6 +282,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openUpdate() {
         UpdateChecker.shared.act()
+    }
+
+    /// The panel is a normal window, and Flare is an accessory app — without the
+    /// activate it opens behind whatever you were using.
+    @objc private func openAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: Self.aboutOptions)
     }
 
     @objc private func openSettings() {

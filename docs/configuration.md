@@ -12,6 +12,7 @@
   your current port.
 - **Check for Updates…** — becomes **Update to 1.1.0…** when one exists.
 - **Settings…**
+- **About Flare** — version, developer, and a link to the repo.
 - **Quit Flare**
 
 ## Settings
