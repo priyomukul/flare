@@ -37,8 +37,7 @@ full-screen apps and other Spaces.
 away for a while and it flashes the moment you sit back down, so you never return to a screen
 full of agents that have been blocked since you left.
 
-**It tells you who.** A badge in the corner of the flash, and a menu bar list you can clear
-with one click:
+**It tells you who.** A menu bar list you can clear with one click:
 
 ```
 api-server · 4m · Claude needs your permission to use Bash

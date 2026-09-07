@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func flashNow() {
-        if FlashOverlay.shared.flash(label: AgentStore.shared.summaryLabel()) {
+        if FlashOverlay.shared.flash() {
             Reminder.shared.noteFlashed()
         }
     }
@@ -209,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Deliberately ignores pause — it is an explicit request to see a flash.
     @objc private func testFlash() {
         Reminder.shared.noteUserIsPresent()
-        if FlashOverlay.shared.flash(label: "Flare · test flash") {
+        if FlashOverlay.shared.flash() {
             Reminder.shared.noteFlashed()
         }
     }

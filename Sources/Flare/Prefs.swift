@@ -18,7 +18,7 @@ enum Prefs {
     static let minReminderInterval = 30.0
     static let maxReminderInterval = 3600.0
     static let defaultColorHex = "#FF4500"
-    static let defaultPeakOpacity = 0.35
+    static let defaultPeakOpacity = 0.20
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [

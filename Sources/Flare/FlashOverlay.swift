@@ -8,17 +8,11 @@ final class OverlayWindow: NSWindow {
     override var canBecomeMain: Bool { false }
 }
 
-/// Content of one overlay window: a full-bleed colour layer plus a small badge in
-/// the top-right. The two animate separately so the text stays readable even
-/// though the colour only ever reaches `peakOpacity`.
+/// Content of one overlay window: a single full-bleed colour layer.
 final class FlashContentView: NSView {
     private let colorView = NSView()
-    private let badgeView = NSView()
-    private let label = NSTextField(labelWithString: "")
-    private let topInset: CGFloat
 
-    init(frame: NSRect, topInset: CGFloat) {
-        self.topInset = topInset
+    override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
 
@@ -30,37 +24,10 @@ final class FlashContentView: NSView {
         colorView.wantsLayer = true
         colorView.layer?.opacity = 0
         addSubview(colorView)
-
-        badgeView.wantsLayer = true
-        badgeView.layer?.cornerRadius = 8
-        badgeView.layer?.backgroundColor = NSColor(white: 0, alpha: 0.78).cgColor
-        badgeView.autoresizingMask = [.minXMargin, .minYMargin]
-        badgeView.alphaValue = 0
-        addSubview(badgeView)
-
-        label.font = .systemFont(ofSize: 13, weight: .medium)
-        label.textColor = .white
-        label.usesSingleLineMode = true
-        label.maximumNumberOfLines = 1
-        label.lineBreakMode = .byTruncatingTail
-        badgeView.addSubview(label)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not supported") }
-
-    func setLabel(_ text: String) {
-        label.stringValue = text
-        label.sizeToFit()
-        let padX: CGFloat = 12, padY: CGFloat = 7
-        let tw = min(ceil(label.frame.width), max(120, bounds.width - 100))
-        let th = ceil(label.frame.height)
-        let w = tw + padX * 2, h = th + padY * 2
-        badgeView.frame = NSRect(x: bounds.maxX - 24 - w,
-                                 y: bounds.maxY - topInset - h,
-                                 width: w, height: h)
-        label.frame = NSRect(x: padX, y: padY, width: tw, height: th)
-    }
 
     func setColor(_ color: NSColor) {
         CATransaction.begin()
@@ -72,7 +39,7 @@ final class FlashContentView: NSView {
     /// Two pulses in and out. Base opacity stays 0, so once the animation is
     /// removed the overlay is invisible again with no flicker.
     func run(peak: Float, duration: CFTimeInterval) {
-        guard let colorLayer = colorView.layer, let badgeLayer = badgeView.layer else { return }
+        guard let colorLayer = colorView.layer else { return }
         let ease = CAMediaTimingFunction(name: .easeInEaseOut)
 
         let pulse = CAKeyframeAnimation(keyPath: "opacity")
@@ -83,20 +50,10 @@ final class FlashContentView: NSView {
         pulse.isRemovedOnCompletion = true
         colorLayer.removeAnimation(forKey: "flare.pulse")
         colorLayer.add(pulse, forKey: "flare.pulse")
-
-        let badge = CAKeyframeAnimation(keyPath: "opacity")
-        badge.values = [0.0, 1.0, 1.0, 0.0]
-        badge.keyTimes = [0, 0.09, 0.82, 1.0]
-        badge.timingFunctions = Array(repeating: ease, count: 3)
-        badge.duration = duration
-        badge.isRemovedOnCompletion = true
-        badgeLayer.removeAnimation(forKey: "flare.badge")
-        badgeLayer.add(badge, forKey: "flare.badge")
     }
 
     func stop() {
         colorView.layer?.removeAnimation(forKey: "flare.pulse")
-        badgeView.layer?.removeAnimation(forKey: "flare.badge")
     }
 }
 
@@ -112,7 +69,6 @@ final class FlashOverlay {
     private var windows: [OverlayWindow] = []
     /// Monotonic — a backwards wall-clock step must not disable flashing.
     private var lastStart: CFTimeInterval = -.greatestFiniteMagnitude
-    private var lastLabel = "Flare"
     private var teardown: DispatchWorkItem?
     private var pendingRestart: DispatchWorkItem?
 
@@ -127,18 +83,15 @@ final class FlashOverlay {
                        name: NSWorkspace.screensDidWakeNotification, object: nil)
     }
 
-    /// Flash every screen. Safe to call at any rate; excess calls only refresh
-    /// the badge text of the in-flight flash. Returns true if a pulse actually
-    /// started, false if the photosensitivity floor swallowed it.
+    /// Flash every screen. Safe to call at any rate. Returns true if a pulse
+    /// actually started, false if the photosensitivity floor swallowed it.
     @discardableResult
-    func flash(label: String) -> Bool {
+    func flash() -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
-        lastLabel = label
         pendingRestart?.cancel()
         pendingRestart = nil
         syncWindows()
         guard !windows.isEmpty else { return false }
-        for w in windows { (w.contentView as? FlashContentView)?.setLabel(label) }
 
         let now = CACurrentMediaTime()
         guard now - lastStart >= Self.minGap else { return false }
@@ -189,11 +142,10 @@ final class FlashOverlay {
             // rate-limit budget. The delay coalesces the burst of notifications
             // a single wake produces into one restart.
             self.lastStart = -.greatestFiniteMagnitude
-            let label = self.lastLabel
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
                 self.pendingRestart = nil
-                self.flash(label: label)
+                self.flash()
             }
             self.pendingRestart = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
@@ -230,11 +182,7 @@ final class FlashOverlay {
         w.animationBehavior = .none
         w.setFrame(screen.frame, display: false)
 
-        // Keep the badge clear of the menu bar / notch.
-        let chrome = screen.frame.maxY - screen.visibleFrame.maxY
-        let view = FlashContentView(frame: NSRect(origin: .zero, size: screen.frame.size),
-                                    topInset: chrome + 12)
-        w.contentView = view
+        w.contentView = FlashContentView(frame: NSRect(origin: .zero, size: screen.frame.size))
         return w
     }
 }

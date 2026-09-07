@@ -21,7 +21,7 @@
 | Port | 4242 | 1024–65535. Changing it restarts the listener — repaste the hooks snippet. |
 | Remind every | 120s | Floor of 30s. |
 | Colour | `#FF4500` | Red-orange. |
-| Peak opacity | 35% | How solid the flash gets. |
+| Peak opacity | 20% | How solid the flash gets. |
 | Check for updates automatically | on | One `GET` to `api.github.com` per day. The only non-localhost traffic Flare produces. |
 | Launch at login | off | `SMAppService`; works with the ad-hoc signed bundle. Enable it from an installed copy — a login item pointing into `dist/` dies at the next `make clean`, and Flare says so if you try. |
 
@@ -53,7 +53,7 @@ outside needs a relaunch.
 A flash is two pulses of a solid colour fading in and out over about 1.2 seconds. Flare will
 not start a new flash within 0.5s of the last one, so it can never exceed two flashes per
 second no matter how many signals arrive at once — well under the three-per-second ceiling.
-Turn the peak opacity down if 35% is still too much.
+Turn the peak opacity down if 20% is still too much.
 
 ## Updates
 
