@@ -11,16 +11,16 @@ for one repo.
     "Notification": [
       { "matcher": "permission_prompt|idle_prompt|elicitation_dialog",
         "hooks": [ { "type": "command", "async": true,
-          "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/waiting -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 || true" } ] }
+          "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/waiting -H 'Content-Type: application/json' -H \"X-Flare-Term: $TERM_PROGRAM\" -H \"X-Flare-App: $__CFBundleIdentifier\" -H \"X-Flare-Iterm: $ITERM_SESSION_ID\" -H \"X-Flare-Tty: $(ps -o tty= -p $$)\" --data-binary @- >/dev/null 2>&1 || true" } ] }
     ],
     "Stop": [
       { "hooks": [ { "type": "command",
-          "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/waiting -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 || true" } ] }
+          "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/waiting -H 'Content-Type: application/json' -H \"X-Flare-Term: $TERM_PROGRAM\" -H \"X-Flare-App: $__CFBundleIdentifier\" -H \"X-Flare-Iterm: $ITERM_SESSION_ID\" -H \"X-Flare-Tty: $(ps -o tty= -p $$)\" --data-binary @- >/dev/null 2>&1 || true" } ] }
     ],
     "PreToolUse": [
       { "matcher": "AskUserQuestion",
         "hooks": [ { "type": "command", "async": true,
-          "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/waiting -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 || true" } ] }
+          "command": "curl -s -m 1 -X POST http://127.0.0.1:4242/waiting -H 'Content-Type: application/json' -H \"X-Flare-Term: $TERM_PROGRAM\" -H \"X-Flare-App: $__CFBundleIdentifier\" -H \"X-Flare-Iterm: $ITERM_SESSION_ID\" -H \"X-Flare-Tty: $(ps -o tty= -p $$)\" --data-binary @- >/dev/null 2>&1 || true" } ] }
     ],
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command",
@@ -37,6 +37,26 @@ for one repo.
   }
 }
 ```
+
+## The `X-Flare-*` headers
+
+The three "waiting" commands carry four extra headers, none of which Claude Code knows
+anything about — they are shell variables read from the terminal the agent is running in:
+
+| Header | From | Used for |
+| --- | --- | --- |
+| `X-Flare-Term` | `$TERM_PROGRAM` | Which terminal app, when `$__CFBundleIdentifier` is missing |
+| `X-Flare-App` | `$__CFBundleIdentifier` | The app to raise |
+| `X-Flare-Iterm` | `$ITERM_SESSION_ID` | The exact iTerm2 split pane |
+| `X-Flare-Tty` | `ps -o tty= -p $$` | The exact Terminal.app tab |
+
+They exist so clicking an agent's line in the menu raises the window it is waiting in. They
+are used for nothing else, never stored on disk, and never leave `127.0.0.1`. Delete them
+from the snippet if you would rather Flare could not do that; every other route works
+unchanged, and clicking the line still clears the agent.
+
+`curl` omits a header whose value is empty, so an unset variable simply does not travel — a
+terminal that exports none of them costs a header-shaped nothing.
 
 ## Why three "waiting" triggers
 

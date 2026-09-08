@@ -24,6 +24,17 @@ on its own with a 2s-to-30s backoff, so a leftover instance quitting is enough t
 **Hooks are not firing.** Run `claude --debug` and watch for the hook commands. Confirm your
 `~/.claude/settings.json` has one `hooks` object (merged, not two).
 
+**Clicking an agent clears it but no window comes forward.** Three things have to line up.
+The hooks snippet must be the current one — it grew the `X-Flare-*` headers, so a snippet
+pasted before that carries nothing to raise; recopy it from the menu and repaste. macOS must
+have granted Flare permission to control your terminal, which it asks for the first time you
+click; if you dismissed that, **System Settings ▸ Privacy & Security ▸ Automation ▸ Flare**
+has the switch. And ad-hoc signed builds change identity on every rebuild, so a `dist/` copy
+you rebuild often will keep asking — install to `/Applications` and the grant sticks.
+
+Exact-tab focus works for iTerm2 and Terminal.app. Every other terminal gets brought to the
+front and no further: nothing else exposes which window a given tty belongs to.
+
 **The flash does not cover a full-screen app.** The overlay uses `.screenSaver` window level
 with `canJoinAllSpaces` and `fullScreenAuxiliary`, which is enough on macOS 14+. If a
 particular app still covers it, that app is running above screen-saver level; there is no

@@ -150,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             for agent in agents {
                 let item = add(to: menu, title: Self.menuTitle(for: agent),
-                               action: #selector(clearAgent(_:)))
+                               action: #selector(goToAgent(_:)))
                 item.representedObject = agent.id
                 item.toolTip = agent.note
             }
@@ -259,12 +259,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Actions
 
-    @objc private func clearAgent(_ sender: NSMenuItem) {
+    /// Raise the terminal the agent is waiting in, then drop it from the list —
+    /// clicking the row means "I am dealing with this one now".
+    ///
+    /// Clearing from the menu is itself proof I am at the keyboard; without
+    /// noteUserIsPresent the return-to-desk trigger stays armed and flashes for
+    /// whatever is left a moment later.
+    @objc private func goToAgent(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
+        Reminder.shared.noteUserIsPresent()
+        if let agent = AgentStore.shared.agent(id: id) { Focus.go(to: agent.origin) }
         AgentStore.shared.remove(id: id)
     }
 
     @objc private func clearAll() {
+        Reminder.shared.noteUserIsPresent()
         AgentStore.shared.removeAll()
     }
 

@@ -78,6 +78,26 @@ be wrong. Read this before changing the corresponding code.
   - Closing the window rewrites the volume root's `FinderInfo` and clears the custom-icon bit.
 
   So the icon copy and `SetFile -a C` both have to come *after* the styling pass, not before.
+- **Raising an agent's window needs facts only its own shell has.** The Claude Code hook
+  payload carries `session_id`, `cwd` and the event — nothing that identifies a window. But
+  the hook command runs *inside* the agent's terminal, so it can read `$ITERM_SESSION_ID`,
+  `$__CFBundleIdentifier`, `$TERM_PROGRAM` and its own tty and send them along as headers.
+  That is why the snippet grew four `-H` flags rather than Flare growing a way to search for
+  windows: there is no such way. `CGWindowListCopyWindowInfo` knows a window's owner and
+  bounds, never which tty is inside it.
+- **Only iTerm2 and Terminal.app can be told which tab.** iTerm2 gives every session a stable
+  id that matches the UUID half of `$ITERM_SESSION_ID`; Terminal.app exposes each tab's `tty`
+  as `/dev/ttysNNN`, which is what `ps -o tty= -p $$` reports once you prefix it. Ghostty,
+  WezTerm, Alacritty, Warp and kitty expose no equivalent, so they get `activate` and nothing
+  more. Both scripted paths fall back to plain activation on any error, which covers a refused
+  Automation prompt and a tab that has since been closed.
+- **The AppleScript never runs on the main thread.** A terminal that is hung — or an
+  Automation prompt the user leaves sitting — would otherwise freeze the menu bar. It goes on
+  its own serial queue, and the menu closes regardless of what the script does next.
+- **Ad-hoc signing makes the Automation grant temporary.** TCC keys the permission to the code
+  signature, and `codesign --sign -` produces a new identity on every rebuild, so a `dist/`
+  build re-prompts constantly while an `/Applications` copy is asked once. Worth knowing
+  before concluding the feature is broken.
 - **Homebrew ships as a personal tap rather than homebrew-cask.** The official cask
   repository requires notarised binaries and a notability bar a new project will not clear.
   A tap costs two extra commands and behaves identically from then on.

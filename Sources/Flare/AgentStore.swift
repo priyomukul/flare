@@ -8,6 +8,9 @@ struct WaitingAgent {
     var displayName: String
     var note: String?
     var since: Date
+    /// Where the signal came from, so the menu can raise it. Refreshed on every
+    /// signal — a resumed session can reappear in a different window.
+    var origin: Origin
 
     var waitingSeconds: Int { max(0, Int(Date().timeIntervalSince(since).rounded())) }
 }
@@ -28,20 +31,25 @@ final class AgentStore {
         lock.withLock { storage.values.sorted { ($0.since, $0.displayName) < ($1.since, $1.displayName) } }
     }
 
+    func agent(id: String) -> WaitingAgent? { lock.withLock { storage[id] } }
+
     var count: Int { lock.withLock { storage.count } }
     var isEmpty: Bool { count == 0 }
 
     /// Create or refresh an agent. `since` is preserved across refreshes so the
     /// menu shows how long I have actually been keeping it waiting.
-    func upsert(id: String, name: String, note: String?) {
+    func upsert(id: String, name: String, note: String?, origin: Origin = Origin()) {
         lock.withLock {
             if var existing = storage[id] {
                 existing.baseName = name
                 existing.note = note
+                // An empty origin means this caller could not tell us; keep what
+                // an earlier signal for the same session knew.
+                if !origin.isEmpty { existing.origin = origin }
                 storage[id] = existing
             } else {
                 storage[id] = WaitingAgent(id: id, baseName: name, displayName: name,
-                                           note: note, since: Date())
+                                           note: note, since: Date(), origin: origin)
             }
             disambiguateLocked()
         }

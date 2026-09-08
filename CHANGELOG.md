@@ -4,6 +4,24 @@ All notable changes to Flare are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Flare uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Clicking an agent in the menu raises the terminal it is waiting in**, then clears it.
+  iTerm2 and Terminal.app land on the exact tab; other terminals are brought to the front.
+  This needs the current hooks snippet — recopy it from **Copy Claude Code hooks snippet** and
+  repaste, because the three "waiting" commands now send four `X-Flare-*` headers describing
+  the terminal they ran in. The headers are used for nothing else and never leave `127.0.0.1`;
+  delete them and everything still works except the raising. macOS asks once for permission to
+  control your terminal.
+
+### Fixed
+
+- **Clearing from the menu now counts as being at your desk.** `Clear all` and clicking an
+  agent left the return-to-desk trigger armed, so with two agents waiting, clearing one could
+  flash for the other moments later.
+
 ## [1.0.1] — 2026-09-08
 
 ### Added
@@ -51,5 +69,6 @@ Initial release. A menu bar app that flashes the screen when an AI agent is wait
 a loopback HTTP listener on port 4242, one line per waiting agent in the menu, nag flashes
 every couple of minutes until you answer, pause, and a Homebrew cask.
 
+[Unreleased]: https://github.com/priyomukul/flare/compare/v1.0.1...HEAD
 [1.0.1]: https://github.com/priyomukul/flare/releases/tag/v1.0.1
 [1.0.0]: https://github.com/priyomukul/flare/releases/tag/v1.0.0

@@ -1,10 +1,12 @@
 import Foundation
 import Network
 
-/// One parsed request. Only what the spec needs: method, path, Content-Length, body.
+/// One parsed request. Only what the spec needs: method, path, headers, body.
 struct HTTPRequest {
     let method: String
     let path: String
+    /// Lowercased names. Flare reads Content-Length and the X-Flare-* set.
+    let headers: [String: String]
     let body: Data
 
     enum ParseResult {
@@ -35,12 +37,14 @@ struct HTTPRequest {
                                                omittingEmptySubsequences: false)[0])
         while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
 
+        var headers: [String: String] = [:]
         var contentLength = 0
         for line in lines {
             guard let colon = line.firstIndex(of: ":") else { continue }
             let name = line[line.startIndex..<colon].trimmingCharacters(in: .whitespaces).lowercased()
-            guard name == "content-length" else { continue }
             let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            headers[name] = value
+            guard name == "content-length" else { continue }
             guard let n = Int(value), n >= 0 else { return .malformed }
             contentLength = n
         }
@@ -50,7 +54,7 @@ struct HTTPRequest {
         let available = buffer.distance(from: bodyStart, to: buffer.endIndex)
         if available < contentLength { return .incomplete }
         let bodyEnd = buffer.index(bodyStart, offsetBy: contentLength)
-        return .ok(HTTPRequest(method: method, path: path,
+        return .ok(HTTPRequest(method: method, path: path, headers: headers,
                                body: Data(buffer[bodyStart..<bodyEnd])))
     }
 }
@@ -344,7 +348,8 @@ final class HTTPListener {
 
         case ("POST", "/waiting"):
             let signal = Signal.parse(body: request.body)
-            store.upsert(id: signal.id, name: signal.name, note: signal.note)
+            store.upsert(id: signal.id, name: signal.name, note: signal.note,
+                         origin: Origin(headers: request.headers))
             respondJSON(session, ["ok": true, "id": signal.id, "waiting": store.count])
             DispatchQueue.main.async { [weak self] in self?.onWaiting?() }
 

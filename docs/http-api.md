@@ -30,6 +30,30 @@ a hook that misfires should still get your attention.
 If a body somehow contains both an `agent` and a `session_id`, `agent` wins: a caller that
 names itself explicitly meant it.
 
+## Request headers
+
+`POST /waiting` reads four optional headers, all of them describing the terminal the caller
+is running in. They are what lets the menu raise that window when you click the agent's line;
+nothing else uses them, and leaving them off costs you only that.
+
+| Header | Value | Effect |
+| --- | --- | --- |
+| `X-Flare-Term` | `$TERM_PROGRAM` | Names the terminal app when `X-Flare-App` is absent |
+| `X-Flare-App` | `$__CFBundleIdentifier` | The bundle id to raise |
+| `X-Flare-Iterm` | `$ITERM_SESSION_ID` | Raises that exact iTerm2 pane |
+| `X-Flare-Tty` | `ttys004` or `/dev/ttys004` | Raises that exact Terminal.app tab |
+
+A signal that carries none of them still records the agent; the origin of an earlier signal
+for the same id is kept rather than blanked, so one hook without the headers does not undo
+what another already established.
+
+```sh
+curl -s -m 1 -X POST http://127.0.0.1:4242/waiting \
+  -H "X-Flare-App: $__CFBundleIdentifier" \
+  -H "X-Flare-Iterm: $ITERM_SESSION_ID" \
+  -d '{"agent":"codex-api"}'
+```
+
 ## Example
 
 ```console

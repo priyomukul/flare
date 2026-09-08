@@ -23,7 +23,7 @@ import Foundation
 /// exits non-zero would surface an error when Flare simply is not running.
 enum HooksSnippet {
     static func json(port: Int) -> String {
-        let waiting = command(port: port, route: "waiting")
+        let waiting = command(port: port, route: "waiting", origin: true)
         let clear = command(port: port, route: "clear")
         return """
         {
@@ -59,8 +59,21 @@ enum HooksSnippet {
         """
     }
 
-    private static func command(port: Int, route: String) -> String {
+    private static func command(port: Int, route: String, origin: Bool = false) -> String {
         "curl -s -m 1 -X POST http://127.0.0.1:\(port)/\(route) "
-            + "-H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 || true"
+            + "-H 'Content-Type: application/json' "
+            + (origin ? originHeaders : "")
+            + "--data-binary @- >/dev/null 2>&1 || true"
     }
+
+    /// Which terminal, and which tab of it, the agent is waiting in — so
+    /// clicking its line in the menu can raise the window rather than leave you
+    /// hunting for it. Double-quoted so the shell expands them, backslashed
+    /// because the snippet is JSON, and harmless when unset: curl drops a header
+    /// whose value is empty, and Flare only ever uses these to raise a window.
+    private static let originHeaders =
+        "-H \\\"X-Flare-Term: $TERM_PROGRAM\\\" "
+        + "-H \\\"X-Flare-App: $__CFBundleIdentifier\\\" "
+        + "-H \\\"X-Flare-Iterm: $ITERM_SESSION_ID\\\" "
+        + "-H \\\"X-Flare-Tty: $(ps -o tty= -p $$)\\\" "
 }

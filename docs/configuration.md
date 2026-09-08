@@ -3,7 +3,10 @@
 ## The menu
 
 - **One line per waiting agent** — `api-server · 4m · Claude needs your permission to use Bash`.
-  Clicking it clears that agent.
+  Clicking it raises the terminal window that agent is waiting in, then clears it. iTerm2 and
+  Terminal.app land on the exact tab; other terminals get the app brought forward. See
+  [claude-code.md](claude-code.md#the-x-flare-headers) for what makes that possible, and
+  [troubleshooting.md](troubleshooting.md) if nothing comes forward.
 - **Clear all**
 - **Test flash** — always flashes, even while paused.
 - **Pause ▸ 15 min / 1 hour / until resumed** — collapses to **Resume** while paused. Signals
