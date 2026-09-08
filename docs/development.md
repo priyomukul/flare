@@ -97,10 +97,14 @@ owner, level and bounds without any permission, and overlay windows show up at l
 
 ## Releasing
 
+Before cutting anything: bump `CFBundleShortVersionString` and `CFBundleVersion` in
+`Resources/Info.plist`, bump `version` in `Casks/flare.rb`, add the release's section to
+[CHANGELOG.md](../CHANGELOG.md), and push — `gh` tags the remote default branch as it stands.
+
 ```sh
 make release        # builds the DMG, cuts the tag, uploads, prints the sha256
 ```
 
-Then update `sha256` in `Casks/flare.rb` with the value it printed — taken from the asset
-downloaded back from GitHub, not from the local build, since the DMG is not byte-reproducible.
-Bump `CFBundleShortVersionString` in `Resources/Info.plist` and `version` in the cask first.
+Then update `sha256` in `Casks/flare.rb` with the hash of the asset downloaded back from
+GitHub, not the value printed from the local build — the DMG is not byte-reproducible, so the
+two differ and only the published one matters.

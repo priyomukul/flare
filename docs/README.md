@@ -10,4 +10,5 @@
 | [design-notes.md](design-notes.md) | Why things are built the way they are, and the traps |
 | [troubleshooting.md](troubleshooting.md) | When it misbehaves, and how to uninstall |
 
-Installation lives in the [top-level README](../README.md).
+Installation lives in the [top-level README](../README.md), and what changed in each
+release in the [changelog](../CHANGELOG.md).
