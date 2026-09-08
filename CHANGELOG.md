@@ -4,32 +4,46 @@ All notable changes to Flare are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Flare uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] — 2026-09-09
 
 ### Added
 
-- **A real Settings window.** Six panes — General, Signals, Nagging, Flash, Menu Bar, About —
-  in a standard macOS preferences window rather than one long scrolling form. Signals gained
-  **Reveal settings.json…**, Flash gained a preview strip beside **Test Flash**, and Menu Bar
-  gained an **Indicator colour**: matching the menu bar by default, or a colour of your own,
-  which applies to the number as well as the dot. About moved here from the standard AppKit
-  panel, so **About Flare** in the menu opens the pane.
-- **`Cmd-W`, `Cmd-,` and the editing shortcuts work.** Flare has no menu bar to hang key
-  equivalents on, so it installs a main menu it never displays.
-
 - **Clicking an agent in the menu raises the terminal it is waiting in**, then clears it.
-  iTerm2 and Terminal.app land on the exact tab; other terminals are brought to the front.
-  This needs the current hooks snippet — recopy it from **Copy Claude Code hooks snippet** and
-  repaste, because the three "waiting" commands now send four `X-Flare-*` headers describing
-  the terminal they ran in. The headers are used for nothing else and never leave `127.0.0.1`;
-  delete them and everything still works except the raising. macOS asks once for permission to
-  control your terminal.
+  iTerm2 and Terminal.app land on the exact tab; every other terminal is brought to the front,
+  because none of them can be asked which window a given tty is in. **This needs the current
+  hooks snippet** — recopy it from **Copy Claude Code hooks snippet** and repaste, because the
+  three "waiting" commands now send four `X-Flare-*` headers describing the terminal they ran
+  in. Nothing else reads them, they never leave `127.0.0.1`, and deleting them from the snippet
+  turns only this off. macOS asks once for permission to control your terminal.
+- **Flare stays quiet while you are already looking at the agent** (**Settings ▸ Nagging**, on
+  by default). When everything waiting belongs to the frontmost app the flash is skipped, and
+  the agents are left alone — they stay in the menu and on the badge, because they are still
+  waiting. Anything in another app still flashes, as does any agent whose app Flare was never
+  told about. Clearing on focus would have had to guess at a session and could only ever have
+  called `/clear-all`. Reported in [#1](https://github.com/priyomukul/flare/issues/1).
+- **A real Settings window.** Six panes — General, Signals, Nagging, Flash, Menu Bar, About —
+  in a standard macOS preferences window rather than one long scrolling form. New along the
+  way: **Reveal settings.json…** in Signals, a preview strip beside **Test Flash**, and an
+  **Indicator colour** in Menu Bar, which matches the menu bar by default and otherwise
+  colours the number as well as the dot. About moved here from the standard AppKit panel, so
+  **About Flare** in the menu opens the pane.
+- **`Cmd-W`, `Cmd-,` and the editing shortcuts work.** An accessory app has no menu bar to
+  hang key equivalents on, so Flare installs a main menu it never displays.
+- **A LICENSE.** MIT, which is what the About pane says.
 
-- **Flare stays quiet while you are already looking at the agent** (**Settings ▸ Nagging**,
-  on by default). When everything waiting belongs to the frontmost app, the flash is skipped —
-  the agents stay in the menu and on the badge, because they are still waiting. Anything in
-  another app still flashes, as does any agent whose app Flare was never told about. Reported
-  in [#1](https://github.com/priyomukul/flare/issues/1).
+### Changed
+
+- **The flash no longer draws a badge.** The black label in the top-right said who was waiting
+  for the second it was on screen; the menu and the tooltip say the same thing on your own
+  schedule, without landing over what you were reading.
+- **Default peak opacity is 20%**, down from 35%. Existing installs keep whatever they set.
+- **The menu bar indicator can be a dot instead of a count** (**Settings ▸ Menu Bar**). The
+  number is still the default.
+- **Clearing from the menu counts as being at your desk.** `Clear all` and clicking an agent
+  left the return-to-desk trigger armed, so with two agents waiting, clearing one could flash
+  for the other moments later.
+- **Check for Updates… left the menu.** Updates live in Settings, which has room for the
+  status line, the buttons and the Homebrew hint.
 
 ### Fixed
 
@@ -39,9 +53,6 @@ All notable changes to Flare are recorded here. The format follows
   rebuilt the icon, which triggered the redraw again. Light and dark now come from
   `AppleInterfaceThemeChangedNotification`, the icon is cached, and every write to the status
   button is guarded. [#2](https://github.com/priyomukul/flare/issues/2)
-- **Clearing from the menu now counts as being at your desk.** `Clear all` and clicking an
-  agent left the return-to-desk trigger armed, so with two agents waiting, clearing one could
-  flash for the other moments later.
 
 ## [1.0.1] — 2026-09-08
 
@@ -90,6 +101,7 @@ Initial release. A menu bar app that flashes the screen when an AI agent is wait
 a loopback HTTP listener on port 4242, one line per waiting agent in the menu, nag flashes
 every couple of minutes until you answer, pause, and a Homebrew cask.
 
-[Unreleased]: https://github.com/priyomukul/flare/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/priyomukul/flare/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/priyomukul/flare/releases/tag/v1.1.0
 [1.0.1]: https://github.com/priyomukul/flare/releases/tag/v1.0.1
 [1.0.0]: https://github.com/priyomukul/flare/releases/tag/v1.0.0
