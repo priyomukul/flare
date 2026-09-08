@@ -23,6 +23,7 @@
 | --- | --- | --- |
 | Port | 4242 | 1024–65535. Changing it restarts the listener — repaste the hooks snippet. |
 | Remind every | 120s | Floor of 30s. |
+| Stay quiet while the agent's app is in front | on | No flash when everything waiting is in the app you are already looking at. |
 | Colour | `#FF4500` | Red-orange. |
 | Peak opacity | 20% | How solid the flash gets. |
 | Menu bar badge | Number | `Number` shows how many agents are waiting; `Dot` shows only that some are, in the flash colour. |
@@ -58,6 +59,23 @@ A flash is two pulses of a solid colour fading in and out over about 1.2 seconds
 not start a new flash within 0.5s of the last one, so it can never exceed two flashes per
 second no matter how many signals arrive at once — well under the three-per-second ceiling.
 Turn the peak opacity down if 20% is still too much.
+
+## Quiet while you are already there
+
+An agent you are looking at does not need the screen to flash. While **Stay quiet while the
+agent's app is in front** is on, Flare skips the flash whenever every waiting agent belongs to
+the app that is frontmost — the entries stay in the menu and on the badge, because they are
+still waiting; you just do not need telling.
+
+Anything waiting in another app still flashes, and so does an agent whose app Flare was never
+told about. That is the case for a plain `curl` integration, and for a hooks snippet copied
+before the `X-Flare-*` headers existed — recopy it from the menu if this never seems to
+trigger.
+
+Frontmost *app* is as fine as macOS goes: it can say "Warp came forward", never "this tab".
+So three sessions in one terminal go quiet together while that terminal is in front. That is
+the deliberate trade — the alternative is guessing which tab you meant, and a wrong guess
+would silently drop the other sessions.
 
 ## Updates
 

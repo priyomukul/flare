@@ -66,9 +66,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func flashNow() {
+        guard shouldFlash() else { return }
         if FlashOverlay.shared.flash() {
             Reminder.shared.noteFlashed()
         }
+    }
+
+    /// There is nothing to tell you if everything waiting is in the app you are
+    /// already looking at. Deliberately not a clear: the agents stay in the
+    /// list and on the badge, because "waiting" is still true — you just do not
+    /// need the screen to shout it.
+    ///
+    /// Frontmost app is the finest granularity macOS offers here. It cannot say
+    /// which tab, which is exactly why this suppresses rather than clears: a
+    /// clear would have to guess, and guessing wrong loses state.
+    private func shouldFlash() -> Bool {
+        guard Prefs.quietWhenFrontmost else { return true }
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        return AgentStore.shared.hasWaitingOutside(front)
     }
 
     @objc private func prefsChanged() {

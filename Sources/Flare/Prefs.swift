@@ -10,6 +10,7 @@ enum Prefs {
         static let flashColor = "flashColor"
         static let peakOpacity = "peakOpacity"
         static let menuBarBadge = "menuBarBadge"
+        static let quietWhenFrontmost = "quietWhenFrontmost"
         static let autoCheckUpdates = "autoCheckUpdates"
         static let lastUpdateCheck = "lastUpdateCheck"
     }
@@ -41,6 +42,7 @@ enum Prefs {
             Key.flashColor: defaultColorHex,
             Key.peakOpacity: defaultPeakOpacity,
             Key.menuBarBadge: MenuBarBadge.count.rawValue,
+            Key.quietWhenFrontmost: true,
             Key.autoCheckUpdates: true,
         ])
     }
@@ -82,6 +84,14 @@ enum Prefs {
     static var flashColor: NSColor {
         get { NSColor(hex: flashColorHex) ?? NSColor(hex: defaultColorHex)! }
         set { flashColorHex = newValue.hexString }
+    }
+
+    /// Skip the flash while the only agents waiting are in the app already in
+    /// front of you. Off by default would mean flashing at someone who is
+    /// demonstrably reading the question.
+    static var quietWhenFrontmost: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.quietWhenFrontmost) }
+        set { set(Key.quietWhenFrontmost, newValue) }
     }
 
     /// The one setting that lets Flare talk to anything beyond 127.0.0.1.

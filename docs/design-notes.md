@@ -78,6 +78,16 @@ be wrong. Read this before changing the corresponding code.
   - Closing the window rewrites the volume root's `FinderInfo` and clears the custom-icon bit.
 
   So the icon copy and `SetFile -a C` both have to come *after* the styling pass, not before.
+- **Focus suppresses the flash; it never clears the agent.** The reflex is to POST `/clear`
+  when the terminal comes forward, but `NSWorkspace` reports "Warp became frontmost", never
+  which tab — so a focus-driven clear can only be `/clear-all`, which throws away every other
+  waiting session. Several agents in one repo are indistinguishable by name, `cwd` cannot tell
+  them apart either, and the ones you lose are the ones you needed the badge for. Suppressing
+  needs no session identity at all: frontmost-app is exactly the granularity macOS offers and
+  exactly the granularity the feature needs.
+- **An agent with no known origin always flashes.** Silence has to be earned by evidence that
+  you are looking at the thing. Absent that evidence — a `curl` integration, or a hooks
+  snippet older than the `X-Flare-*` headers — the loud default is the safe one.
 - **Raising an agent's window needs facts only its own shell has.** The Claude Code hook
   payload carries `session_id`, `cwd` and the event — nothing that identifies a window. But
   the hook command runs *inside* the agent's terminal, so it can read `$ITERM_SESSION_ID`,

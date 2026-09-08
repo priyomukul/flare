@@ -33,6 +33,17 @@ final class AgentStore {
 
     func agent(id: String) -> WaitingAgent? { lock.withLock { storage[id] } }
 
+    /// Is anything waiting somewhere other than `bundleID`?
+    ///
+    /// An agent whose origin we never learned counts as elsewhere. We cannot
+    /// show that it is in front of you, and staying silent about an agent we
+    /// know nothing about is the worse mistake.
+    func hasWaitingOutside(_ bundleID: String?) -> Bool {
+        lock.withLock {
+            storage.values.contains { $0.origin.appBundleID != bundleID }
+        }
+    }
+
     var count: Int { lock.withLock { storage.count } }
     var isEmpty: Bool { count == 0 }
 

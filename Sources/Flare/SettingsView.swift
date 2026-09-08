@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var color: Color = Color(nsColor: Prefs.flashColor)
     @State private var peakOpacity: Double = Prefs.peakOpacity
     @State private var menuBarBadge: Prefs.MenuBarBadge = Prefs.menuBarBadge
+    @State private var quietWhenFrontmost: Bool = Prefs.quietWhenFrontmost
     @State private var launchAtLogin: Bool = LoginItem.isEnabled
     @State private var autoCheckUpdates: Bool = Prefs.autoCheckUpdates
     @State private var updateStatus: String = ""
@@ -56,6 +57,11 @@ struct SettingsView: View {
                     }
                 }
                 .onChange(of: reminderInterval) { _, new in Prefs.reminderInterval = new }
+                Toggle("Stay quiet while the agent's app is in front", isOn: $quietWhenFrontmost)
+                    .onChange(of: quietWhenFrontmost) { _, on in Prefs.quietWhenFrontmost = on }
+                Text("An agent you are already looking at does not need the screen to flash. It stays in the menu and on the badge either way. Agents in any other app still flash — and so does everything, if Flare was never told which app an agent belongs to.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Flash") {

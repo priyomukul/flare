@@ -16,6 +16,12 @@ All notable changes to Flare are recorded here. The format follows
   delete them and everything still works except the raising. macOS asks once for permission to
   control your terminal.
 
+- **Flare stays quiet while you are already looking at the agent** (**Settings ▸ Nagging**,
+  on by default). When everything waiting belongs to the frontmost app, the flash is skipped —
+  the agents stay in the menu and on the badge, because they are still waiting. Anything in
+  another app still flashes, as does any agent whose app Flare was never told about. Reported
+  in [#1](https://github.com/priyomukul/flare/issues/1).
+
 ### Fixed
 
 - **Clearing from the menu now counts as being at your desk.** `Clear all` and clicking an
