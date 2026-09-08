@@ -10,6 +10,7 @@ enum Prefs {
         static let flashColor = "flashColor"
         static let peakOpacity = "peakOpacity"
         static let menuBarBadge = "menuBarBadge"
+        static let menuBarBadgeColor = "menuBarBadgeColor"
         static let quietWhenFrontmost = "quietWhenFrontmost"
         static let autoCheckUpdates = "autoCheckUpdates"
         static let lastUpdateCheck = "lastUpdateCheck"
@@ -42,6 +43,7 @@ enum Prefs {
             Key.flashColor: defaultColorHex,
             Key.peakOpacity: defaultPeakOpacity,
             Key.menuBarBadge: MenuBarBadge.count.rawValue,
+            Key.menuBarBadgeColor: menuBarBadgeAuto,
             Key.quietWhenFrontmost: true,
             Key.autoCheckUpdates: true,
         ])
@@ -84,6 +86,28 @@ enum Prefs {
     static var flashColor: NSColor {
         get { NSColor(hex: flashColorHex) ?? NSColor(hex: defaultColorHex)! }
         set { flashColorHex = newValue.hexString }
+    }
+
+    /// The indicator colour that means "leave it to the menu bar". Anything
+    /// else is a hex string.
+    static let menuBarBadgeAuto = "auto"
+
+    /// Colour of the count or dot in the menu bar. `nil` is the default and
+    /// means no colour of our own: the icon stays a template image, which is
+    /// both cheaper to draw and correct in light and dark without being told.
+    static var menuBarBadgeColor: NSColor? {
+        get {
+            let raw = UserDefaults.standard.string(forKey: Key.menuBarBadgeColor) ?? menuBarBadgeAuto
+            return raw == menuBarBadgeAuto ? nil : NSColor(hex: raw)
+        }
+        set { set(Key.menuBarBadgeColor, newValue.map(\.hexString) ?? menuBarBadgeAuto) }
+    }
+
+    /// The stored form, for a settings pane that has to tell "auto" apart from
+    /// a colour that merely failed to parse.
+    static var menuBarBadgeColorHex: String {
+        get { UserDefaults.standard.string(forKey: Key.menuBarBadgeColor) ?? menuBarBadgeAuto }
+        set { set(Key.menuBarBadgeColor, newValue) }
     }
 
     /// Skip the flash while the only agents waiting are in the app already in

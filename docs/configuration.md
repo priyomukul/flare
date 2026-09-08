@@ -14,21 +14,28 @@
 - **Copy Claude Code hooks snippet** — the block from [claude-code.md](claude-code.md), with
   your current port.
 - **Settings…**
-- **About Flare** — version, developer, and a link to the repo.
+- **About Flare** — opens Settings on the About pane: version, developer, and links to the repo.
 - **Quit Flare**
 
 ## Settings
 
-| Setting | Default | Notes |
-| --- | --- | --- |
-| Port | 4242 | 1024–65535. Changing it restarts the listener — repaste the hooks snippet. |
-| Remind every | 120s | Floor of 30s. |
-| Stay quiet while the agent's app is in front | on | No flash when everything waiting is in the app you are already looking at. |
-| Colour | `#FF4500` | Red-orange. |
-| Peak opacity | 20% | How solid the flash gets. |
-| Menu bar badge | Number | `Number` shows how many agents are waiting; `Dot` shows only that some are, in the flash colour. |
-| Check for updates automatically | on | One `GET` to `api.github.com` per day. The only non-localhost traffic Flare produces. |
-| Launch at login | off | `SMAppService`; works with the ad-hoc signed bundle. Enable it from an installed copy — a login item pointing into `dist/` dies at the next `make clean`, and Flare says so if you try. |
+Six panes, reachable from **Settings…** in the menu or with `Cmd-,` while Flare is active.
+`Cmd-W` closes the window.
+
+| Pane | Setting | Default | Notes |
+| --- | --- | --- | --- |
+| General | Launch at login | off | `SMAppService`; works with the ad-hoc signed bundle. Enable it from an installed copy — a login item pointing into `dist/` dies at the next `make clean`, and Flare says so if you try. |
+| General | Check for updates automatically | on | One `GET` to `api.github.com` per day. The only non-localhost traffic Flare produces. |
+| Signals | Port | 4242 | 1024–65535. Changing it restarts the listener — repaste the hooks snippet. |
+| Nagging | Remind every | 2 minutes | Eight steps, from 30 seconds to 30 minutes. |
+| Nagging | Stay quiet while the agent's app is in front | on | No flash when everything waiting is in the app you are already looking at. |
+| Flash | Colour | `#FF4500` | Red-orange. |
+| Flash | Peak opacity | 20% | How solid the flash gets, from 5% to 60%. |
+| Menu Bar | While agents are waiting | Number | `Number` shows how many are waiting; `Dot` shows only that some are. |
+| Menu Bar | Indicator colour | Match menu bar | Matching leaves the icon a template image, which is both cheaper to draw and right in light and dark. A custom colour applies to the dot and to the number. |
+
+**Signals** also has **Copy Hooks Snippet** and **Reveal settings.json…**, and **Flash** has
+**Test Flash**, which plays one flash at the current settings and ignores pause.
 
 Settings live in `UserDefaults` under `com.priyomukul.flare`, so you can also poke at them
 directly:

@@ -49,7 +49,8 @@ Sources/Flare/
   Reminder.swift       Reminder timer and return-to-desk detection
   Pause.swift          Pause state
   Prefs.swift          UserDefaults
-  SettingsView.swift   The one SwiftUI view, plus SMAppService and its window
+  SettingsPanes.swift  The six SwiftUI settings panes, plus SMAppService
+  SettingsWindow.swift The preferences window and its toolbar
   HooksSnippet.swift   The hooks JSON, with the live port
   UpdateChecker.swift  Daily GitHub release check; never installs anything
 Resources/

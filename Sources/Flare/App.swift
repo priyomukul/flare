@@ -51,6 +51,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.menu = menu
         refreshStatusItem()
 
+        // An accessory app never shows a menu bar, but NSApplication still
+        // dispatches key equivalents through the main menu — so without one
+        // there is no Cmd-W to close Settings, and no Cmd-C or Cmd-V in the
+        // port field either. None of this is ever drawn.
+        NSApp.mainMenu = Self.makeMainMenu()
+
         HTTPListener.shared.onWaiting = { [weak self] in self?.signalReceived() }
         HTTPListener.shared.start(port: Prefs.port)
 
@@ -119,59 +125,122 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let active = count > 0 && !PauseController.shared.isPaused
         let dot = count > 0 && Prefs.menuBarBadge == .dot
 
+        let accent = Prefs.menuBarBadgeColor
         let key = IconKey(active: active, dot: dot,
-                          accent: dot ? Prefs.flashColorHex : "",
+                          accent: dot ? (accent?.hexString ?? Prefs.menuBarBadgeAuto) : "",
                           appearance: button.effectiveAppearance.name.rawValue)
         if cachedIcon?.key != key,
-           let image = Self.icon(active: active, dot: dot, appearance: button.effectiveAppearance) {
+           let image = Self.icon(active: active, dot: dot, accent: accent,
+                                 appearance: button.effectiveAppearance) {
             cachedIcon = (key, image)
         }
         if button.image !== cachedIcon?.image { button.image = cachedIcon?.image }
 
         let title = count > 0 && Prefs.menuBarBadge == .count ? " \(count)" : ""
         if button.title != title { button.title = title }
+        // A count in a colour of its own has to be an attributed title; left
+        // plain, the menu bar draws it in the label colour like the icon.
+        if let accent, !title.isEmpty {
+            let styled = NSAttributedString(string: title, attributes: [.foregroundColor: accent])
+            if button.attributedTitle != styled { button.attributedTitle = styled }
+        }
 
         let tip = count > 0 ? AgentStore.shared.summaryLabel() : "Flare · nothing waiting"
         if button.toolTip != tip { button.toolTip = tip }
     }
 
-    static func icon(active: Bool, dot: Bool = false, appearance: NSAppearance? = nil) -> NSImage? {
+    static func icon(active: Bool, dot: Bool = false, accent: NSColor? = nil,
+                     appearance: NSAppearance? = nil) -> NSImage? {
         let name = active ? "light.beacon.max.fill" : "light.beacon.max"
         let img = NSImage(systemSymbolName: name, accessibilityDescription: "Flare")
             ?? NSImage(systemSymbolName: active ? "bell.fill" : "bell", accessibilityDescription: "Flare")
         img?.isTemplate = true
         guard let img, dot else { return img }
-        return badged(img, appearance: appearance ?? NSApp.effectiveAppearance)
+        return badged(img, accent: accent, appearance: appearance ?? NSApp.effectiveAppearance)
     }
 
-    /// A dot in the flash colour in the top-right corner, with the artwork
-    /// behind it cleared so it reads as a badge rather than as part of the
-    /// beacon. A coloured badge rules out a template image, so the beacon is
-    /// tinted here instead — resolved against the menu bar's own appearance,
-    /// which is what a template image would have done for us.
-    private static func badged(_ base: NSImage, appearance: NSAppearance) -> NSImage {
-        var glyph = NSColor.labelColor
-        appearance.performAsCurrentDrawingAppearance {
-            glyph = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
+    /// A dot in the top-right corner, with the artwork behind it cleared so it
+    /// reads as a badge rather than as part of the beacon.
+    ///
+    /// With no accent — the default — the result stays a template image, which
+    /// is both the cheapest thing to draw and correct in light and dark without
+    /// anyone having to say so. An accent rules that out, so the beacon is
+    /// tinted by hand against the menu bar's own appearance instead, which is
+    /// what the template would have done for us.
+    private static func badged(_ base: NSImage, accent: NSColor?,
+                               appearance: NSAppearance) -> NSImage {
+        var glyph = NSColor.black
+        if accent != nil {
+            appearance.performAsCurrentDrawingAppearance {
+                glyph = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
+            }
         }
-        let accent = Prefs.flashColor
 
         let badge = NSImage(size: base.size, flipped: false) { rect in
             base.draw(in: rect)
-            glyph.setFill()
-            rect.fill(using: .sourceAtop)
+            if accent != nil {
+                glyph.setFill()
+                rect.fill(using: .sourceAtop)
+            }
 
             let d = min(max(rect.height * 0.3, 4), 6)
             let dot = NSRect(x: rect.maxX - d, y: rect.maxY - d, width: d, height: d)
             NSGraphicsContext.current?.compositingOperation = .clear
             NSBezierPath(ovalIn: dot.insetBy(dx: -1.5, dy: -1.5)).fill()
             NSGraphicsContext.current?.compositingOperation = .sourceOver
-            accent.setFill()
+            (accent ?? .black).setFill()
             NSBezierPath(ovalIn: dot).fill()
             return true
         }
+        badge.isTemplate = accent == nil
         badge.accessibilityDescription = base.accessibilityDescription
         return badge
+    }
+
+    /// The invisible main menu. Only the key equivalents matter, but the items
+    /// are given real titles so they read correctly in the Help menu's search
+    /// and to accessibility clients.
+    private static func makeMainMenu() -> NSMenu {
+        let main = NSMenu()
+
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "About Flare", action: #selector(openAbout), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit Flare",
+                        action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+
+        // Standard editing selectors, so the port field behaves like a text
+        // field rather than a place where Cmd-V does nothing.
+        let editItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All",
+                         action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = editMenu
+        main.addItem(editItem)
+
+        let windowItem = NSMenuItem()
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(withTitle: "Close",
+                           action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowMenu.addItem(withTitle: "Minimize",
+                           action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowItem.submenu = windowMenu
+        main.addItem(windowItem)
+        NSApp.windowsMenu = windowMenu
+
+        return main
     }
 
     // MARK: - Menu
@@ -247,38 +316,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static let developer = "Priyo Mukul"
     static let repoURL = URL(string: "https://github.com/priyomukul/flare")!
 
-    /// The standard panel already draws the icon, the name and "Version x (y)";
-    /// credits carries the rest. `applicationVersion` is passed explicitly so
-    /// `swift run`, which has no bundle to read it from, still shows something.
-    private static var aboutOptions: [NSApplication.AboutPanelOptionKey: Any] {
-        [.applicationName: "Flare",
-         .applicationVersion: UpdateChecker.shared.currentVersion,
-         .credits: aboutCredits]
-    }
-
-    private static var aboutCredits: NSAttributedString {
-        let font = NSFont.systemFont(ofSize: 11)
-        let centred = NSMutableParagraphStyle()
-        centred.alignment = .center
-
-        let text = NSMutableAttributedString(
-            string: """
-            Flashes the screen when an AI agent is waiting on you.
-            Menu bar only, no dependencies, nothing leaves 127.0.0.1
-            but the daily version check.
-
-            By \(developer)
-
-            """,
-            attributes: [.font: font, .foregroundColor: NSColor.labelColor])
-        // NSAttributedString.Key.link makes this clickable in the panel's text view.
-        text.append(NSAttributedString(string: repoURL.absoluteString,
-                                       attributes: [.font: font, .link: repoURL]))
-        text.addAttribute(.paragraphStyle, value: centred,
-                          range: NSRange(location: 0, length: text.length))
-        return text
-    }
-
     private func addPause(to menu: NSMenu, title: String, seconds: TimeInterval) {
         let item = add(to: menu, title: title, action: #selector(pauseFor(_:)))
         item.representedObject = seconds
@@ -353,15 +390,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pb.setString(text, forType: .string)
     }
 
-    /// The panel is a normal window, and Flare is an accessory app — without the
-    /// activate it opens behind whatever you were using.
+    /// About is a pane of Settings rather than the standard AppKit panel — one
+    /// About, and the only one that can carry the version, the author and the
+    /// links together.
     @objc private func openAbout() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(options: Self.aboutOptions)
+        SettingsWindowController.shared.show(.about)
     }
 
     @objc private func openSettings() {
-        SettingsWindowController.shared.show()
+        SettingsWindowController.shared.show(.general)
     }
 
     @objc private func quit() {

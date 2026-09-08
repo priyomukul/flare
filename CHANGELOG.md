@@ -8,6 +8,15 @@ All notable changes to Flare are recorded here. The format follows
 
 ### Added
 
+- **A real Settings window.** Six panes — General, Signals, Nagging, Flash, Menu Bar, About —
+  in a standard macOS preferences window rather than one long scrolling form. Signals gained
+  **Reveal settings.json…**, Flash gained a preview strip beside **Test Flash**, and Menu Bar
+  gained an **Indicator colour**: matching the menu bar by default, or a colour of your own,
+  which applies to the number as well as the dot. About moved here from the standard AppKit
+  panel, so **About Flare** in the menu opens the pane.
+- **`Cmd-W`, `Cmd-,` and the editing shortcuts work.** Flare has no menu bar to hang key
+  equivalents on, so it installs a main menu it never displays.
+
 - **Clicking an agent in the menu raises the terminal it is waiting in**, then clears it.
   iTerm2 and Terminal.app land on the exact tab; other terminals are brought to the front.
   This needs the current hooks snippet — recopy it from **Copy Claude Code hooks snippet** and
