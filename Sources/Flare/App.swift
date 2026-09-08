@@ -15,19 +15,34 @@ enum FlareMain {
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
-    /// A coloured dot means the icon is no longer a template image, so nothing
-    /// recolours the beacon for us when the menu bar flips between light and
-    /// dark. Redraw it ourselves.
-    private var appearanceObserver: NSKeyValueObservation?
+
+    /// Everything the icon depends on. Rebuilding it on every refresh — and
+    /// there is one per signal, pause, listener change and menu open — hands
+    /// NSStatusItem a new image each time, which makes it re-snapshot the
+    /// button for its Control Center replica. That is expensive enough to
+    /// matter on its own, and it used to be ruinous: see `appearanceObserver`
+    /// in the git history for the spin it caused.
+    private struct IconKey: Equatable {
+        let active: Bool
+        let dot: Bool
+        let accent: String
+        let appearance: String
+    }
+    private var cachedIcon: (key: IconKey, image: NSImage)?
 
     func applicationDidFinishLaunching(_ note: Notification) {
         Prefs.registerDefaults()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.imagePosition = .imageLeading
-        appearanceObserver = statusItem.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
-            DispatchQueue.main.async { self?.refreshStatusItem() }
-        }
+        // A dot in the flash colour cannot be a template image, so the beacon
+        // is tinted by hand and has to be redrawn when the menu bar flips
+        // between light and dark. This notification fires once per switch;
+        // observing the button's own effectiveAppearance instead feeds back
+        // into the redraw it triggers and spins the main thread.
+        DistributedNotificationCenter.default.addObserver(
+            self, selector: #selector(refreshStatusItem),
+            name: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil)
         let menu = NSMenu()
         menu.delegate = self
         // No item is ever checked, so drop the leading state column and let the
@@ -94,16 +109,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Status item
 
+    /// Every assignment here is guarded. NSStatusItem treats any write as a
+    /// change and re-snapshots the button, so writing the same values back on
+    /// every signal is pure waste — and writing a freshly built, equal image is
+    /// worse than waste.
     @objc private func refreshStatusItem() {
+        guard let button = statusItem.button else { return }
         let count = AgentStore.shared.count
         let active = count > 0 && !PauseController.shared.isPaused
         let dot = count > 0 && Prefs.menuBarBadge == .dot
-        statusItem.button?.image = Self.icon(active: active, dot: dot,
-                                             appearance: statusItem.button?.effectiveAppearance)
-        statusItem.button?.title = count > 0 && Prefs.menuBarBadge == .count ? " \(count)" : ""
-        statusItem.button?.toolTip = count > 0
-            ? AgentStore.shared.summaryLabel()
-            : "Flare · nothing waiting"
+
+        let key = IconKey(active: active, dot: dot,
+                          accent: dot ? Prefs.flashColorHex : "",
+                          appearance: button.effectiveAppearance.name.rawValue)
+        if cachedIcon?.key != key,
+           let image = Self.icon(active: active, dot: dot, appearance: button.effectiveAppearance) {
+            cachedIcon = (key, image)
+        }
+        if button.image !== cachedIcon?.image { button.image = cachedIcon?.image }
+
+        let title = count > 0 && Prefs.menuBarBadge == .count ? " \(count)" : ""
+        if button.title != title { button.title = title }
+
+        let tip = count > 0 ? AgentStore.shared.summaryLabel() : "Flare · nothing waiting"
+        if button.toolTip != tip { button.toolTip = tip }
     }
 
     static func icon(active: Bool, dot: Bool = false, appearance: NSAppearance? = nil) -> NSImage? {

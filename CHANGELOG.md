@@ -24,6 +24,12 @@ All notable changes to Flare are recorded here. The format follows
 
 ### Fixed
 
+- **Flare no longer pins a CPU core.** 1.0.1 spun the main thread from launch, on both badge
+  styles, whether or not anything was waiting: the status item's redraw re-resolved the
+  button's appearance, which fired the appearance observer added for the coloured dot, which
+  rebuilt the icon, which triggered the redraw again. Light and dark now come from
+  `AppleInterfaceThemeChangedNotification`, the icon is cached, and every write to the status
+  button is guarded. [#2](https://github.com/priyomukul/flare/issues/2)
 - **Clearing from the menu now counts as being at your desk.** `Clear all` and clicking an
   agent left the return-to-desk trigger armed, so with two agents waiting, clearing one could
   flash for the other moments later.
