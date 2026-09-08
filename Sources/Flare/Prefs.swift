@@ -9,6 +9,7 @@ enum Prefs {
         static let reminderInterval = "reminderInterval"
         static let flashColor = "flashColor"
         static let peakOpacity = "peakOpacity"
+        static let menuBarBadge = "menuBarBadge"
         static let autoCheckUpdates = "autoCheckUpdates"
         static let lastUpdateCheck = "lastUpdateCheck"
     }
@@ -20,12 +21,26 @@ enum Prefs {
     static let defaultColorHex = "#FF4500"
     static let defaultPeakOpacity = 0.20
 
+    /// What the menu bar icon shows while agents are waiting.
+    enum MenuBarBadge: String, CaseIterable, Identifiable {
+        case count, dot
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .count: "Number"
+            case .dot: "Dot"
+            }
+        }
+    }
+
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
             Key.port: defaultPort,
             Key.reminderInterval: defaultReminderInterval,
             Key.flashColor: defaultColorHex,
             Key.peakOpacity: defaultPeakOpacity,
+            Key.menuBarBadge: MenuBarBadge.count.rawValue,
             Key.autoCheckUpdates: true,
         ])
     }
@@ -47,6 +62,16 @@ enum Prefs {
     static var peakOpacity: Double {
         get { min(max(UserDefaults.standard.double(forKey: Key.peakOpacity), 0.05), 1.0) }
         set { set(Key.peakOpacity, min(max(newValue, 0.05), 1.0)) }
+    }
+
+    /// Unknown values fall back to the count rather than showing nothing — a
+    /// badge that silently disappears is worse than one in the wrong style.
+    static var menuBarBadge: MenuBarBadge {
+        get {
+            let raw = UserDefaults.standard.string(forKey: Key.menuBarBadge) ?? ""
+            return MenuBarBadge(rawValue: raw) ?? .count
+        }
+        set { set(Key.menuBarBadge, newValue.rawValue) }
     }
 
     static var flashColorHex: String {

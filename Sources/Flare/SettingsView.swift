@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var reminderInterval: Double = Prefs.reminderInterval
     @State private var color: Color = Color(nsColor: Prefs.flashColor)
     @State private var peakOpacity: Double = Prefs.peakOpacity
+    @State private var menuBarBadge: Prefs.MenuBarBadge = Prefs.menuBarBadge
     @State private var launchAtLogin: Bool = LoginItem.isEnabled
     @State private var autoCheckUpdates: Bool = Prefs.autoCheckUpdates
     @State private var updateStatus: String = ""
@@ -72,6 +73,22 @@ struct SettingsView: View {
                     }
                 }
                 .onChange(of: peakOpacity) { _, new in Prefs.peakOpacity = new }
+            }
+
+            Section {
+                Picker("While agents are waiting", selection: $menuBarBadge) {
+                    ForEach(Prefs.MenuBarBadge.allCases) { style in
+                        Text(style.label).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: menuBarBadge) { _, new in Prefs.menuBarBadge = new }
+            } header: {
+                Text("Menu bar")
+            } footer: {
+                Text("The number tells you how many agents are waiting; the dot, in the flash colour, only tells you that some are. Either way the menu and the tooltip list them.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -234,12 +251,12 @@ final class SettingsWindowController {
         let hosting = NSHostingController(rootView: SettingsView())
         if let window {
             window.contentViewController = hosting
-            window.setContentSize(NSSize(width: 460, height: 620))
+            window.setContentSize(NSSize(width: 460, height: 700))
         } else {
             let w = NSWindow(contentViewController: hosting)
             w.title = "Flare Settings"
             w.styleMask = [.titled, .closable]
-            w.setContentSize(NSSize(width: 460, height: 620))
+            w.setContentSize(NSSize(width: 460, height: 700))
             w.isReleasedWhenClosed = false
             w.center()
             window = w

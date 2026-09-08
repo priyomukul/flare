@@ -10,7 +10,6 @@
   are still recorded while paused; resuming flashes at once if anything is waiting.
 - **Copy Claude Code hooks snippet** — the block from [claude-code.md](claude-code.md), with
   your current port.
-- **Check for Updates…** — becomes **Update to 1.1.0…** when one exists.
 - **Settings…**
 - **About Flare** — version, developer, and a link to the repo.
 - **Quit Flare**
@@ -23,6 +22,7 @@
 | Remind every | 120s | Floor of 30s. |
 | Colour | `#FF4500` | Red-orange. |
 | Peak opacity | 20% | How solid the flash gets. |
+| Menu bar badge | Number | `Number` shows how many agents are waiting; `Dot` shows only that some are, in the flash colour. |
 | Check for updates automatically | on | One `GET` to `api.github.com` per day. The only non-localhost traffic Flare produces. |
 | Launch at login | off | `SMAppService`; works with the ad-hoc signed bundle. Enable it from an installed copy — a login item pointing into `dist/` dies at the next `make clean`, and Flare says so if you try. |
 
@@ -60,15 +60,15 @@ Turn the peak opacity down if 20% is still too much.
 
 If you installed with Homebrew, `brew upgrade --cask flare` is all you need.
 
-Either way, Flare checks GitHub once a day for a newer release and, when there is one, the
-menu's **Check for Updates…** line becomes **Update to 1.1.0…**. Clicking it opens the release
-page — or, on a Homebrew-managed copy, puts `brew upgrade --cask flare` on your clipboard
-first. Flare never downloads or installs anything by itself.
+Either way, Flare checks GitHub once a day for a newer release and reports it in **Settings ▸
+Updates**, where **Check Now** runs a check on demand and **Get it** opens the release page —
+or, on a Homebrew-managed copy, puts `brew upgrade --cask flare` on your clipboard first.
+Flare never downloads or installs anything by itself.
 
 That version check is the only thing Flare sends anywhere other than `127.0.0.1`. It is an
 unauthenticated `GET` to `api.github.com` on an ephemeral URLSession — no cookies, no
 credentials, no cache — carrying nothing but a `Flare/<version>` user-agent. **Settings ▸
-Updates ▸ Check for updates automatically** turns it off; with it off, the menu item still
+Updates ▸ Check for updates automatically** turns it off; with it off, **Check Now** still
 works on demand.
 
 "Once a day" means once per *answer*. A check that never reached GitHub does not count, and is

@@ -15,12 +15,19 @@ enum FlareMain {
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
+    /// A coloured dot means the icon is no longer a template image, so nothing
+    /// recolours the beacon for us when the menu bar flips between light and
+    /// dark. Redraw it ourselves.
+    private var appearanceObserver: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ note: Notification) {
         Prefs.registerDefaults()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.imagePosition = .imageLeading
+        appearanceObserver = statusItem.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.refreshStatusItem() }
+        }
         let menu = NSMenu()
         menu.delegate = self
         // No item is ever checked, so drop the leading state column and let the
@@ -42,7 +49,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         nc.addObserver(self, selector: #selector(refreshStatusItem), name: AgentStore.didChange, object: nil)
         nc.addObserver(self, selector: #selector(refreshStatusItem), name: PauseController.didChange, object: nil)
         nc.addObserver(self, selector: #selector(refreshStatusItem), name: HTTPListener.stateChanged, object: nil)
-        nc.addObserver(self, selector: #selector(refreshStatusItem), name: UpdateChecker.didChange, object: nil)
     }
 
     func applicationWillTerminate(_ note: Notification) {
@@ -67,6 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func prefsChanged() {
         HTTPListener.shared.restartIfNeeded(port: Prefs.port)
+        // Nothing else posts when the badge style changes.
+        refreshStatusItem()
     }
 
     // MARK: - Status item
@@ -74,19 +82,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func refreshStatusItem() {
         let count = AgentStore.shared.count
         let active = count > 0 && !PauseController.shared.isPaused
-        statusItem.button?.image = Self.icon(active: active)
-        statusItem.button?.title = count > 0 ? " \(count)" : ""
+        let dot = count > 0 && Prefs.menuBarBadge == .dot
+        statusItem.button?.image = Self.icon(active: active, dot: dot,
+                                             appearance: statusItem.button?.effectiveAppearance)
+        statusItem.button?.title = count > 0 && Prefs.menuBarBadge == .count ? " \(count)" : ""
         statusItem.button?.toolTip = count > 0
             ? AgentStore.shared.summaryLabel()
             : "Flare · nothing waiting"
     }
 
-    static func icon(active: Bool) -> NSImage? {
+    static func icon(active: Bool, dot: Bool = false, appearance: NSAppearance? = nil) -> NSImage? {
         let name = active ? "light.beacon.max.fill" : "light.beacon.max"
         let img = NSImage(systemSymbolName: name, accessibilityDescription: "Flare")
             ?? NSImage(systemSymbolName: active ? "bell.fill" : "bell", accessibilityDescription: "Flare")
         img?.isTemplate = true
-        return img
+        guard let img, dot else { return img }
+        return badged(img, appearance: appearance ?? NSApp.effectiveAppearance)
+    }
+
+    /// A dot in the flash colour in the top-right corner, with the artwork
+    /// behind it cleared so it reads as a badge rather than as part of the
+    /// beacon. A coloured badge rules out a template image, so the beacon is
+    /// tinted here instead — resolved against the menu bar's own appearance,
+    /// which is what a template image would have done for us.
+    private static func badged(_ base: NSImage, appearance: NSAppearance) -> NSImage {
+        var glyph = NSColor.labelColor
+        appearance.performAsCurrentDrawingAppearance {
+            glyph = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
+        }
+        let accent = Prefs.flashColor
+
+        let badge = NSImage(size: base.size, flipped: false) { rect in
+            base.draw(in: rect)
+            glyph.setFill()
+            rect.fill(using: .sourceAtop)
+
+            let d = min(max(rect.height * 0.3, 4), 6)
+            let dot = NSRect(x: rect.maxX - d, y: rect.maxY - d, width: d, height: d)
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(ovalIn: dot.insetBy(dx: -1.5, dy: -1.5)).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            accent.setFill()
+            NSBezierPath(ovalIn: dot).fill()
+            return true
+        }
+        badge.accessibilityDescription = base.accessibilityDescription
+        return badge
     }
 
     // MARK: - Menu
@@ -133,7 +174,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         add(to: menu, title: "Copy Claude Code hooks snippet", action: #selector(copyHooks))
-        addUpdateItem(to: menu)
 
         // macOS gives the standard Settings item a gear automatically, and the
         // image column is laid out per section — so anything sharing a section
@@ -156,22 +196,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.isEnabled = enabled ?? (action != nil)
         menu.addItem(item)
         return item
-    }
-
-    /// One item that changes with the checker's state, rather than a permanent
-    /// row plus a second one that only sometimes appears.
-    private func addUpdateItem(to menu: NSMenu) {
-        switch UpdateChecker.shared.state {
-        case .checking:
-            add(to: menu, title: "Checking for updates…", action: nil)
-        case .available(let version, _):
-            let title = UpdateChecker.shared.isHomebrewManaged
-                ? "Update to \(version) — copy brew command"
-                : "Update to \(version)…"
-            add(to: menu, title: title, action: #selector(openUpdate))
-        case .idle, .upToDate, .failed:
-            add(to: menu, title: "Check for Updates…", action: #selector(checkForUpdates))
-        }
     }
 
     // MARK: - About
@@ -274,14 +298,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
-    }
-
-    @objc private func checkForUpdates() {
-        UpdateChecker.shared.check()
-    }
-
-    @objc private func openUpdate() {
-        UpdateChecker.shared.act()
     }
 
     /// The panel is a normal window, and Flare is an accessory app — without the
